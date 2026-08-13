@@ -24,12 +24,20 @@ class DocumentChunkRepository(MutableRepository[DocumentChunk]):
         doc_types: list[str] | None = None,
         top_k: int = 5,
         as_of: datetime | None = None,
+        *,
+        query_embedding: list[float] | None = None,
     ) -> list[DocumentChunk]:
-        """Minimal doc_type + validity-window filtered lookup. Real
-        pgvector cosine-similarity ranking (`embedding <=> query_vector`)
-        is knowledge-retrieval's responsibility (agents/knowledge-retrieval.md)
-        — this stub only guarantees the filter contract (doc_type list +
-        expired contract/SOP exclusion) that persona builds on top of.
+        """doc_type 필터 + 유효기간 필터 + (query_embedding이 주어지면) pgvector
+        코사인 유사도 정렬을 적용한 청크 검색.
+
+        agents/knowledge-retrieval.md 원칙: 유사도만으로 정렬해 만료된 계약/
+        SOP 조항이 근거로 쓰이는 것을 막기 위해, 유사도 정렬 이전에 doc_type
+        필터와 유효기간 필터(`valid_until IS NULL OR valid_until >= as_of`)를
+        먼저 적용한다.
+
+        `query_embedding`을 넘기지 않으면(과거 스텁과 동일하게) id 순으로
+        반환한다 — 이 경우도 doc_type/유효기간 필터 계약은 그대로 보장된다.
+        상위 진입점은 `app.rag.search.search_similar_chunks`를 참고.
         """
         as_of = as_of or datetime.now(timezone.utc)
         query = (
@@ -41,4 +49,8 @@ class DocumentChunkRepository(MutableRepository[DocumentChunk]):
         query = query.filter(
             (Document.valid_until.is_(None)) | (Document.valid_until >= as_of)
         )
-        return query.order_by(DocumentChunk.id.asc()).limit(top_k).all()
+        if query_embedding is not None:
+            query = query.order_by(DocumentChunk.embedding.cosine_distance(query_embedding))
+        else:
+            query = query.order_by(DocumentChunk.id.asc())
+        return query.limit(top_k).all()
