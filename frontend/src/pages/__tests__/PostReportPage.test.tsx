@@ -16,11 +16,24 @@ const postReport: PostReportApi = {
   scope_limitation_note: "이 시스템에는 실적 확정값을 입력받는 API가 없습니다.",
   generated_at: "2026-08-13T05:00:00Z",
   sections: {
-    "1_사건_개요와_발생시점": { incident_type: "항만 파업" },
+    "1_사건_개요와_발생시점": {
+      incident_id: 2,
+      type: "항만 파업",
+      location: "부산항",
+      occurred_at: "2026-08-10T00:00:00Z",
+      status: "진행중",
+      duplicate_of_incident_id: null,
+      affected_targets: {},
+      assumptions_at_intake: [],
+      created_at: "2026-08-10T00:10:00Z",
+    },
     "2_최초_예상과_실제_진행_과정": {},
     "3_주요_동적_변수의_변화": {},
     "4_검토한_대응안과_제외_사유": {},
-    "5_최종_결정과_승인자": {},
+    "5_최종_결정과_승인자": {
+      approvals_history: [],
+      final_decision: { available: false, reason: "이 사건에 대한 승인/반려 이력(approvals)이 없음" },
+    },
     "6_SOP_발송_수신_수락_실행_이력": {},
     "7_예상_손실과_실제_손실": {},
     "8_회피한_손실과_추가_발생_비용": {},
@@ -63,11 +76,27 @@ describe("PostReportPage — 정상 시나리오(happy path)", () => {
     expect(await screen.findByText("잠정")).toBeInTheDocument();
     expect(screen.getByText(/미확정/)).toBeInTheDocument();
     expect(screen.getByText(/실적 확정값을 입력받는 API가 없습니다/)).toBeInTheDocument();
-    expect(screen.getByText("1. 사건 개요와 발생시점")).toBeInTheDocument();
+    // 1번(사건 개요)·5번(최종 결정) 섹션은 Phase 19에서 OverviewAndDecisionCard로 옮겨져
+    // 더 이상 raw label로 나오지 않고 실제 값(항만 파업)으로 렌더링된다
+    expect(screen.getByText("항만 파업")).toBeInTheDocument();
     expect(screen.getByText("12. 향후 SOP·모델·데이터 개선사항")).toBeInTheDocument();
     expect(screen.getByText("직접 손익 효과")).toBeInTheDocument();
     expect(screen.getByText("5.0억원")).toBeInTheDocument();
     expect(screen.getByText(/법무 판단을 대체하지 않습니다/)).toBeInTheDocument();
+  });
+});
+
+describe("PostReportPage — 사건 개요·최종 결정 카드", () => {
+  it("1번·5번 섹션은 JSON이 아니라 OverviewAndDecisionCard로 렌더링한다", async () => {
+    mockGetPostReport.mockResolvedValue(postReport);
+    mockGetCostAttribution.mockResolvedValue(costAttribution);
+
+    renderAt("2");
+
+    expect(await screen.findByText("사건 개요 · 최종 결정")).toBeInTheDocument();
+    expect(screen.getByText(/승인\/반려 이력/)).toBeInTheDocument();
+    expect(screen.queryByText("1. 사건 개요와 발생시점")).not.toBeInTheDocument();
+    expect(screen.queryByText("5. 최종 결정과 승인자")).not.toBeInTheDocument();
   });
 });
 

@@ -5,9 +5,33 @@ import {
   COST_ATTRIBUTION_LABELS,
   POST_REPORT_SECTIONS,
   type CostAttributionApi,
+  type FinalDecisionSection,
+  type OverviewSection,
   type PostReportApi,
 } from "../features/post-report/types";
 import { formatKrwToEokwon } from "../lib/currency";
+import { OverviewAndDecisionCard } from "../features/post-report/components/OverviewAndDecisionCard";
+
+/** Phase 19에서 전용 UI로 옮긴 섹션 — 아래 일반 JSON 렌더링 목록에서는 제외한다.
+ * 앞으로 Phase 20~24가 섹션을 하나씩 옮길 때마다 이 목록에 키를 추가한다
+ * (DecisionPackagePanel의 MIGRATED_SECTION_KEYS와 같은 패턴, frontend/docs/FEATURE_PHASES.md Phase 19~24). */
+const MIGRATED_SECTION_KEYS = new Set(["1_사건_개요와_발생시점", "5_최종_결정과_승인자"]);
+
+const EMPTY_OVERVIEW: OverviewSection = {
+  incident_id: 0,
+  type: "-",
+  location: "-",
+  occurred_at: "",
+  status: "-",
+  duplicate_of_incident_id: null,
+  affected_targets: {},
+  assumptions_at_intake: [],
+  created_at: "",
+};
+const EMPTY_FINAL_DECISION: FinalDecisionSection = {
+  approvals_history: [],
+  final_decision: { available: false, reason: "-" },
+};
 
 type LoadState =
   | { status: "loading" }
@@ -67,6 +91,25 @@ export function PostReportPage() {
   }
 
   const { postReport, costAttribution } = state;
+  // 백엔드 blob이 loosely-typed dict라 섹션 키 자체는 있어도 하위 필드가 빠질 수 있다
+  // (frontend/docs/FEATURE_PHASES.md Phase 14 undefined 버그와 같은 패턴) — 필드별 기본값 처리한다.
+  const rawOverview = (postReport.sections["1_사건_개요와_발생시점"] ?? {}) as Partial<OverviewSection>;
+  const overview: OverviewSection = {
+    incident_id: rawOverview.incident_id ?? EMPTY_OVERVIEW.incident_id,
+    type: rawOverview.type ?? EMPTY_OVERVIEW.type,
+    location: rawOverview.location ?? EMPTY_OVERVIEW.location,
+    occurred_at: rawOverview.occurred_at ?? EMPTY_OVERVIEW.occurred_at,
+    status: rawOverview.status ?? EMPTY_OVERVIEW.status,
+    duplicate_of_incident_id: rawOverview.duplicate_of_incident_id ?? EMPTY_OVERVIEW.duplicate_of_incident_id,
+    affected_targets: rawOverview.affected_targets ?? EMPTY_OVERVIEW.affected_targets,
+    assumptions_at_intake: rawOverview.assumptions_at_intake ?? EMPTY_OVERVIEW.assumptions_at_intake,
+    created_at: rawOverview.created_at ?? EMPTY_OVERVIEW.created_at,
+  };
+  const rawDecision = (postReport.sections["5_최종_결정과_승인자"] ?? {}) as Partial<FinalDecisionSection>;
+  const decision: FinalDecisionSection = {
+    approvals_history: rawDecision.approvals_history ?? EMPTY_FINAL_DECISION.approvals_history,
+    final_decision: rawDecision.final_decision ?? EMPTY_FINAL_DECISION.final_decision,
+  };
 
   return (
     <div data-theme="dark" className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-primary)]">
@@ -104,8 +147,12 @@ export function PostReportPage() {
         )}
       </div>
 
+      <div className="mb-5">
+        <OverviewAndDecisionCard overview={overview} decision={decision} />
+      </div>
+
       <div className="rounded-[10px] border border-[var(--border)] bg-[var(--panel-bg)] p-4.5">
-        {POST_REPORT_SECTIONS.map(({ key, label }) => (
+        {POST_REPORT_SECTIONS.filter(({ key }) => !MIGRATED_SECTION_KEYS.has(key)).map(({ key, label }) => (
           <div key={key} className="border-b border-[var(--border)] py-2.5 last:border-b-0">
             <div className="mb-1 text-[11.5px] font-bold text-[var(--text-secondary-strong)]">{label}</div>
             <pre className="whitespace-pre-wrap break-words rounded bg-[var(--panel-bg-2)] p-2 text-[10px] leading-relaxed text-[var(--text-secondary)]">

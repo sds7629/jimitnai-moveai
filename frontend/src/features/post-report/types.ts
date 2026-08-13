@@ -57,3 +57,62 @@ export const COST_ATTRIBUTION_LABELS: { key: string; label: string }[] = [
   { key: "고객_회피비용", label: "고객 회피비용" },
   { key: "분쟁_협상_가능_금액", label: "분쟁·협상 가능 금액" },
 ];
+
+/**
+ * Phase 19 전용 타입 — sections["1_사건_개요와_발생시점"]의 실제 형태
+ * (backend/app/services/post_report.py _section_1_overview 확인).
+ */
+export interface OverviewSection {
+  incident_id: number;
+  type: string;
+  location: string;
+  occurred_at: string;
+  status: string;
+  duplicate_of_incident_id: number | null;
+  affected_targets: Record<string, unknown>;
+  assumptions_at_intake: string[];
+  created_at: string;
+}
+
+/**
+ * Phase 19/20/23 공용 타입 — _approval_summary / _candidate_summary가 만드는 형태
+ * (backend/app/services/post_report.py 확인). candidate_summary는 후보 자체가 없으면
+ * {available:false}뿐이고, 있으면 시뮬레이션 유무에 따라 simulation 필드가 갈린다.
+ */
+export interface ApprovalSummaryApi {
+  approval_id: number;
+  decision_type: string;
+  reason: string;
+  approver: string;
+  decided_at: string;
+  data_version_ref: string | null;
+  scenario_version_ref: string | null;
+}
+export type FinalDecisionApi = { available: false; reason: string } | ({ available: true } & ApprovalSummaryApi);
+
+export interface FinalDecisionSection {
+  approvals_history: ApprovalSummaryApi[];
+  final_decision: FinalDecisionApi;
+}
+
+export interface CandidateSimulationApi {
+  available: boolean;
+  reason?: string;
+  expected_loss?: number | null;
+  p90?: number | null;
+  cvar?: number | null;
+  confidence?: number | null;
+  data_version?: string;
+  scenario_version?: string;
+  calculated_at?: string;
+}
+export type CandidateSummaryApi =
+  | { available: false }
+  | {
+      available: true;
+      candidate_id: number;
+      candidate_type: string;
+      description: string;
+      start_time_variant: string | null;
+      simulation: CandidateSimulationApi;
+    };
