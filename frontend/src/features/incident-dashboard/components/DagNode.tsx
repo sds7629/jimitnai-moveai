@@ -63,42 +63,55 @@ export function DagNode({ node }: DagNodeProps) {
             {node.detail && (
               <span>
                 {metricText && "ㆍ"}
-                {detailOpen ? "▾" : "▸"} 클릭 상세
+                <span
+                  aria-hidden
+                  className={`inline-block transition-transform duration-200 ${detailOpen ? "rotate-90" : "rotate-0"}`}
+                >
+                  ▸
+                </span>{" "}
+                클릭 상세
               </span>
             )}
           </div>
         )}
       </div>
 
-      {node.detail && detailOpen && (
-        <div className="w-[210px] rounded-md border border-dashed border-[var(--border-dashed)] bg-[var(--panel-bg-2)] px-3 py-2.5 text-[10.5px] leading-relaxed text-[var(--text-secondary)]">
-          {node.detail.uncertainty && (
-            <div className="mb-1.5">
-              <span className="rounded bg-[var(--blue-chip-bg)] px-1.5 py-0.5 text-[9.5px] font-bold text-[var(--blue)]">
-                불확실성: {node.detail.uncertainty}
-              </span>
+      {node.detail && (
+        <div
+          data-testid="dag-node-detail-wrapper"
+          className={`grid transition-all duration-200 ${detailOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+        >
+          <div className="overflow-hidden">
+            <div className="w-[210px] rounded-md border border-dashed border-[var(--border-dashed)] bg-[var(--panel-bg-2)] px-3 py-2.5 text-[10.5px] leading-relaxed text-[var(--text-secondary)]">
+              {node.detail.uncertainty && (
+                <div className="mb-1.5">
+                  <span className="rounded bg-[var(--blue-chip-bg)] px-1.5 py-0.5 text-[9.5px] font-bold text-[var(--blue)]">
+                    불확실성: {node.detail.uncertainty}
+                  </span>
+                </div>
+              )}
+              <div>
+                {node.detail.basis && (
+                  <>
+                    ㆍ근거: {node.detail.basis}
+                    <br />
+                  </>
+                )}
+                {node.detail.responsibleParty && (
+                  <>
+                    ㆍ책임 주체: {node.detail.responsibleParty}
+                    <br />
+                  </>
+                )}
+                {node.detail.affectedTarget && (
+                  <>
+                    ㆍ영향 대상: {node.detail.affectedTarget}
+                    <br />
+                  </>
+                )}
+                ㆍ예상 시각: {formatExpectedTime(node.detail.expectedTime)}
+              </div>
             </div>
-          )}
-          <div>
-            {node.detail.basis && (
-              <>
-                ㆍ근거: {node.detail.basis}
-                <br />
-              </>
-            )}
-            {node.detail.responsibleParty && (
-              <>
-                ㆍ책임 주체: {node.detail.responsibleParty}
-                <br />
-              </>
-            )}
-            {node.detail.affectedTarget && (
-              <>
-                ㆍ영향 대상: {node.detail.affectedTarget}
-                <br />
-              </>
-            )}
-            ㆍ예상 시각: {formatExpectedTime(node.detail.expectedTime)}
           </div>
         </div>
       )}

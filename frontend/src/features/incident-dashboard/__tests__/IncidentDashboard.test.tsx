@@ -77,19 +77,28 @@ describe("IncidentDashboard — prop 기반 상태 분기", () => {
 });
 
 describe("IncidentDashboard — 인터랙션", () => {
-  it("근거 상세가 있는 DAG 노드를 클릭하면 불확실성/근거 패널이 접힌다/펼쳐진다", async () => {
+  it("근거 상세가 있는 DAG 노드를 클릭하면 상세 패널의 펼침/접힘 상태(grid-rows)가 토글된다", async () => {
+    // CSS grid-rows 트릭으로 애니메이션하므로 콘텐츠는 항상 DOM에 남아있고, grid-rows 클래스만 바뀐다
+    // (완전히 사라지는 것이 아니라 높이가 0으로 트랜지션된다).
     const user = userEvent.setup();
     render(<IncidentDashboard data={strikeScenarioMock} />);
 
+    const detailWrapper = screen
+      .getByText(/불확실성: medium/)
+      .closest('[data-testid="dag-node-detail-wrapper"]') as HTMLElement;
+
     // 기본값은 펼쳐진 상태
-    expect(screen.getByText(/불확실성: medium/)).toBeInTheDocument();
+    expect(detailWrapper).toBeInTheDocument();
+    expect(detailWrapper.className).toContain("grid-rows-[1fr]");
 
     const dagNode = screen.getByText("PCTC 해상운송 부산→유럽").closest("div")!;
     await user.click(dagNode);
-    expect(screen.queryByText(/불확실성: medium/)).not.toBeInTheDocument();
+    expect(detailWrapper.className).toContain("grid-rows-[0fr]");
+    // 접혀도 콘텐츠 자체는 DOM에 남아있다
+    expect(screen.getByText(/불확실성: medium/)).toBeInTheDocument();
 
     await user.click(dagNode);
-    expect(screen.getByText(/불확실성: medium/)).toBeInTheDocument();
+    expect(detailWrapper.className).toContain("grid-rows-[1fr]");
   });
 
   it("'다시 실행' 버튼 클릭 시 onRerun 콜백이 호출된다", async () => {
@@ -127,13 +136,22 @@ describe("IncidentDashboard — 경계값/예외 케이스", () => {
   });
 
   it("steps가 없는 SOP는 클릭해도 펼쳐지지 않는다(비인터랙티브 항목)", async () => {
+    // mockData의 실제 SOP 6건은 모두 steps가 채워져 있으므로(SOP-AIR-02 포함), 이 회귀 테스트는
+    // steps가 없는 합성 SOP를 별도로 주입해 SopItem의 비인터랙티브 동작 자체를 검증한다.
     const user = userEvent.setup();
-    render(<IncidentDashboard data={strikeScenarioMock} />);
+    const dataWithStaticSop = {
+      ...strikeScenarioMock,
+      sops: [
+        ...strikeScenarioMock.sops,
+        { code: "SOP-TEST-99", title: "테스트용 비인터랙티브 SOP", owningTeam: "QA팀" },
+      ],
+    };
+    render(<IncidentDashboard data={dataWithStaticSop} />);
 
-    const staticSop = screen.getByText(/SOP-AIR-02/).closest("div")!;
+    const staticSop = screen.getByText(/SOP-TEST-99/).closest("div")!;
     await user.click(staticSop);
     // 펼칠 절차 목록이 없으므로 클릭해도 오류 없이 그대로 유지된다
-    expect(screen.queryByText(/조달ㆍ물류팀/)).toBeInTheDocument();
+    expect(screen.queryByText(/QA팀/)).toBeInTheDocument();
   });
 });
 
