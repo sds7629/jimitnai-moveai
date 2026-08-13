@@ -2,10 +2,12 @@ import { DECISION_PACKAGE_SECTIONS, type DecisionPackageApi } from "../../decisi
 import type {
   ConfidenceAndUncertaintySection,
   ExpectedLossP90CvarSection,
+  NowVs6hVsNoActionSection,
 } from "../../decision-package/types";
 import { summarizeDeadline } from "../../decision-package/format";
 import { buildExpectedLossTable } from "../../decision-package/expectedLossTable";
 import { ExpectedLossTable } from "./ExpectedLossTable";
+import { NowVs6hComparison } from "./NowVs6hComparison";
 
 interface DecisionPackagePanelProps {
   decisionPackage: DecisionPackageApi;
@@ -13,8 +15,14 @@ interface DecisionPackagePanelProps {
   now?: Date;
 }
 
-/** Phase 13에서 전용 표로 옮긴 섹션 — 아래 일반 JSON 렌더링 목록에서는 제외한다 */
-const TABLE_SECTION_KEYS = new Set(["expected_loss_p90_cvar", "confidence_and_uncertainty"]);
+/** Phase 13~14에서 전용 UI로 옮긴 섹션 — 아래 일반 JSON 렌더링 목록에서는 제외한다 */
+const MIGRATED_SECTION_KEYS = new Set([
+  "expected_loss_p90_cvar",
+  "confidence_and_uncertainty",
+  "now_vs_6h_vs_no_action",
+]);
+
+const EMPTY_NOW_VS_6H: NowVs6hVsNoActionSection = { no_action: null, now: null, plus_6h: null };
 
 /**
  * 의사결정 근거 패널 — GET /incidents/{id}/decision-package 응답을 보여준다.
@@ -31,6 +39,7 @@ export function DecisionPackagePanel({ decisionPackage, now = new Date() }: Deci
     (decisionPackage.package.expected_loss_p90_cvar ?? {}) as ExpectedLossP90CvarSection,
     (decisionPackage.package.confidence_and_uncertainty ?? {}) as ConfidenceAndUncertaintySection,
   );
+  const nowVs6h = (decisionPackage.package.now_vs_6h_vs_no_action ?? EMPTY_NOW_VS_6H) as NowVs6hVsNoActionSection;
 
   return (
     <div className="rounded-[10px] border border-[var(--border)] bg-[var(--panel-bg)] p-4.5">
@@ -55,7 +64,14 @@ export function DecisionPackagePanel({ decisionPackage, now = new Date() }: Deci
         <ExpectedLossTable rows={expectedLossRows} />
       </div>
 
-      {DECISION_PACKAGE_SECTIONS.filter(({ key }) => !TABLE_SECTION_KEYS.has(key)).map(({ key, label }) => (
+      <div className="border-b border-[var(--border)] py-2.5">
+        <div className="mb-1 text-[11.5px] font-bold text-[var(--text-secondary-strong)]">
+          지금 대응 vs 6시간 후 대응 vs 무대응
+        </div>
+        <NowVs6hComparison section={nowVs6h} />
+      </div>
+
+      {DECISION_PACKAGE_SECTIONS.filter(({ key }) => !MIGRATED_SECTION_KEYS.has(key)).map(({ key, label }) => (
         <div key={key} className="border-b border-[var(--border)] py-2.5 last:border-b-0">
           <div className="mb-1 text-[11.5px] font-bold text-[var(--text-secondary-strong)]">{label}</div>
           <pre className="whitespace-pre-wrap break-words rounded bg-[var(--panel-bg-2)] p-2 text-[10px] leading-relaxed text-[var(--text-secondary)]">

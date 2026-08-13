@@ -33,6 +33,13 @@ describe("DecisionPackagePanel — 정상 시나리오(happy path)", () => {
     expect(screen.getByText(/2시간 후/)).toBeInTheDocument();
   });
 
+  it("now_vs_6h_vs_no_action 섹션은 JSON이 아니라 3장 카드로 렌더링한다", () => {
+    render(<DecisionPackagePanel decisionPackage={samplePackage} now={new Date("2026-08-13T00:00:00Z")} />);
+
+    expect(screen.getByText("무대응")).toBeInTheDocument();
+    expect(screen.getAllByText(/해당 후보 없음/)).toHaveLength(3);
+  });
+
   it("기대손실·P90·CVaR 섹션은 JSON이 아니라 표로 렌더링한다", () => {
     render(<DecisionPackagePanel decisionPackage={samplePackage} now={new Date("2026-08-13T00:00:00Z")} />);
 

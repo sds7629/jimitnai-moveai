@@ -55,3 +55,23 @@ export interface ConfidenceAndUncertaintyEntry {
   uncertainty_range: UncertaintyRangeApi;
 }
 export type ConfidenceAndUncertaintySection = Record<string, ConfidenceAndUncertaintyEntry>;
+
+/**
+ * Phase 14 전용 타입 — package["now_vs_6h_vs_no_action"]의 실제 형태
+ * (backend/app/services/response_optimization.py _pair_summary 확인). 세 슬롯 중 해당하는
+ * 후보가 없으면 null.
+ */
+export interface PairSummaryApi {
+  candidate_id: number;
+  candidate_type: string;
+  description: string;
+  start_time_variant: string | null;
+  expected_loss: number | null;
+  p90: number | null;
+  cvar: number | null;
+}
+export interface NowVs6hVsNoActionSection {
+  no_action: PairSummaryApi | null;
+  now: PairSummaryApi | null;
+  plus_6h: PairSummaryApi | null;
+}
