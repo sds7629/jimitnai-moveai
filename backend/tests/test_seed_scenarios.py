@@ -46,7 +46,14 @@ def _extract_operational_state_json_blocks(sql_text: str) -> list[dict]:
 def seed_sql_operational_states() -> dict[str, dict]:
     """{scenario_key: operational_state dict}, parsed straight from
     db/init/003-seed-scenarios.sql, in the same order the scenarios appear
-    in the file (적체, 파업, 관세 -- matches SCENARIO_KEYS)."""
+    in the file (적체, 파업, 관세 -- matches SCENARIO_KEYS).
+
+    db/ lives outside the backend service's docker-compose mount
+    (`./backend:/app` only) -- these tests are skipped rather than failing
+    when run inside that container, since the file is simply unreachable
+    there, not broken."""
+    if not _SEED_SQL_PATH.exists():
+        pytest.skip(f"{_SEED_SQL_PATH} not reachable in this environment (e.g. backend docker container)")
     sql_text = _SEED_SQL_PATH.read_text(encoding="utf-8")
     blocks = _extract_operational_state_json_blocks(sql_text)
     assert len(blocks) == len(SCENARIO_KEYS), (
