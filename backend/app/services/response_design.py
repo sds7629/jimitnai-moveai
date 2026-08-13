@@ -31,7 +31,7 @@ import json
 
 from sqlalchemy.orm import Session
 
-from app.llm import LLMProvider, get_llm_provider
+from app.llm import ClaudeCLIError, GeminiAPIError, LLMProvider, get_llm_provider
 from app.llm.json_utils import extract_json
 from app.models.incident import Incident
 from app.models.operational_snapshot import OperationalSnapshot
@@ -244,20 +244,35 @@ async def generate_candidates(
     provider = llm_provider or get_llm_provider()
 
     dag_summary = _dag_path_summary(db, snapshot.id)
-    rag_results = search_similar_chunks(
-        db, _query_text_for_incident(incident), doc_types=RAG_DOC_TYPES, top_k=RAG_TOP_K
-    )
+    try:
+        rag_results = search_similar_chunks(
+            db, _query_text_for_incident(incident), doc_types=RAG_DOC_TYPES, top_k=RAG_TOP_K
+        )
+    except (GeminiAPIError, ClaudeCLIError) as exc:
+        # 병합 전 리뷰(실키 테스트)에서 발견: 임베딩 호출(RAG 검색)이 실패하면
+        # (키 미설정/할당량 초과/네트워크 오류 등) 이 예외가 잡히지 않아
+        # API 레이어까지 처리 안 된 500으로 샜다. ResponseGenerationError로
+        # 감싸면 app/api/simulate.py가 이미 502로 변환해준다.
+        raise ResponseGenerationError(
+            f"대응안 후보 생성을 위한 RAG 검색(임베딩) 호출 실패: {exc}"
+        ) from exc
     rag_summary = _rag_summary(rag_results)
     prompt = _build_prompt(incident, dag_summary, rag_summary)
 
     # provider.generate() is a synchronous blocking call (network round-trip
     # to Gemini/Claude CLI) -- run it off the event loop via to_thread so
     # this async endpoint does not stall other requests while waiting.
-    raw = await asyncio.to_thread(provider.generate, prompt)
+    try:
+        raw = await asyncio.to_thread(provider.generate, prompt)
+    except (GeminiAPIError, ClaudeCLIError) as exc:
+        raise ResponseGenerationError(f"대응안 후보 생성 LLM 호출 실패: {exc}") from exc
     try:
         llm_candidates = _parse_llm_candidates(raw)
     except (ValueError, json.JSONDecodeError):
-        raw = await asyncio.to_thread(provider.generate, prompt)
+        try:
+            raw = await asyncio.to_thread(provider.generate, prompt)
+        except (GeminiAPIError, ClaudeCLIError) as exc:
+            raise ResponseGenerationError(f"대응안 후보 생성 LLM 재호출 실패: {exc}") from exc
         try:
             llm_candidates = _parse_llm_candidates(raw)
         except (ValueError, json.JSONDecodeError) as exc:
