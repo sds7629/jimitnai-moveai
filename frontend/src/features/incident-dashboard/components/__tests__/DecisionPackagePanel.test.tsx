@@ -33,8 +33,16 @@ const samplePackage: DecisionPackageApi = {
     },
     fact_inference_assumption: { "1": { fact: { port_status: "폐쇄" }, inference: {}, assumption: {} } },
     freshness_and_coverage: { quality_mode: "normal", freshness_seconds: 100, coverage_ratio: 1 },
-    key_sensitivity_variables: {},
-    feasibility_and_exclusion: {},
+    key_sensitivity_variables: { "1": ["항만 재개방 시점"] },
+    feasibility_and_exclusion: {
+      "1": {
+        validation_status: "가능",
+        exclusion_category: null,
+        exclusion_detail: null,
+        preconditions: ["창고 여유 확보"],
+        has_simulation_result: true,
+      },
+    },
     confidence_and_uncertainty: {},
     ranked_candidates: { ranked: [], excluded_from_ranking: [] },
     disclaimer: "이 패키지는 대응안의 순위와 근거를 제공할 뿐, 특정 대응안을 정답으로 단정하지 않습니다.",
@@ -47,7 +55,7 @@ describe("DecisionPackagePanel — 정상 시나리오(happy path)", () => {
 
     expect(screen.getByText(/특정 대응안을 정답으로 단정하지 않습니다/)).toBeInTheDocument();
     expect(screen.getByText("기대손실·P90·CVaR·신뢰도")).toBeInTheDocument();
-    expect(screen.getByText("실행 가능성·제외 사유")).toBeInTheDocument();
+    expect(screen.getAllByText("실행 가능성·제외 사유")).toHaveLength(1);
     expect(screen.getByText(/2시간 후/)).toBeInTheDocument();
   });
 
@@ -81,6 +89,14 @@ describe("DecisionPackagePanel — 정상 시나리오(happy path)", () => {
     expect(screen.queryByText("사용한 데이터·문서")).not.toBeInTheDocument();
     expect(screen.queryByText("FACT·INFERENCE·ASSUMPTION")).not.toBeInTheDocument();
     expect(screen.queryByText("데이터 최신성·커버리지")).not.toBeInTheDocument();
+  });
+
+  it("feasibility_and_exclusion·key_sensitivity_variables는 JSON이 아니라 표로 렌더링한다", () => {
+    render(<DecisionPackagePanel decisionPackage={samplePackage} now={new Date("2026-08-13T00:00:00Z")} />);
+    expect(screen.getByText("가능")).toBeInTheDocument();
+    expect(screen.getByText("창고 여유 확보")).toBeInTheDocument();
+    expect(screen.getByText("항만 재개방 시점")).toBeInTheDocument();
+    expect(screen.queryByText("핵심 민감도 변수")).not.toBeInTheDocument();
   });
 });
 

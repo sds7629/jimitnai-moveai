@@ -5,15 +5,19 @@ import type {
   DataAndDocumentsUsedSection,
   ExpectedLossP90CvarSection,
   FactInferenceAssumptionSection,
+  FeasibilityAndExclusionSection,
   FreshnessAndCoverageSection,
+  KeySensitivityVariablesSection,
   NowVs6hVsNoActionSection,
 } from "../../decision-package/types";
 import { summarizeDeadline } from "../../decision-package/format";
 import { buildExpectedLossTable } from "../../decision-package/expectedLossTable";
+import { buildFeasibilityTable } from "../../decision-package/feasibilityTable";
 import { ExpectedLossTable } from "./ExpectedLossTable";
 import { NowVs6hComparison } from "./NowVs6hComparison";
 import { CausalPathList } from "./CausalPathList";
 import { EvidencePanel } from "./EvidencePanel";
+import { FeasibilityTable } from "./FeasibilityTable";
 
 interface DecisionPackagePanelProps {
   decisionPackage: DecisionPackageApi;
@@ -30,6 +34,8 @@ const MIGRATED_SECTION_KEYS = new Set([
   "data_and_documents_used",
   "fact_inference_assumption",
   "freshness_and_coverage",
+  "feasibility_and_exclusion",
+  "key_sensitivity_variables",
 ]);
 
 const EMPTY_NOW_VS_6H: NowVs6hVsNoActionSection = { no_action: null, now: null, plus_6h: null };
@@ -89,6 +95,10 @@ export function DecisionPackagePanel({ decisionPackage, now = new Date() }: Deci
     freshness_seconds: rawFreshnessAndCoverage.freshness_seconds ?? EMPTY_FRESHNESS_AND_COVERAGE.freshness_seconds,
     coverage_ratio: rawFreshnessAndCoverage.coverage_ratio ?? EMPTY_FRESHNESS_AND_COVERAGE.coverage_ratio,
   };
+  const feasibilityRows = buildFeasibilityTable(
+    (decisionPackage.package.feasibility_and_exclusion ?? {}) as FeasibilityAndExclusionSection,
+    (decisionPackage.package.key_sensitivity_variables ?? {}) as KeySensitivityVariablesSection,
+  );
 
   return (
     <div className="rounded-[10px] border border-[var(--border)] bg-[var(--panel-bg)] p-4.5">
@@ -132,6 +142,11 @@ export function DecisionPackagePanel({ decisionPackage, now = new Date() }: Deci
           factInferenceAssumption={factInferenceAssumption}
           freshnessAndCoverage={freshnessAndCoverage}
         />
+      </div>
+
+      <div className="border-b border-[var(--border)] py-2.5">
+        <div className="mb-1 text-[11.5px] font-bold text-[var(--text-secondary-strong)]">실행 가능성·제외 사유</div>
+        <FeasibilityTable rows={feasibilityRows} />
       </div>
 
       {DECISION_PACKAGE_SECTIONS.filter(({ key }) => !MIGRATED_SECTION_KEYS.has(key)).map(({ key, label }) => (

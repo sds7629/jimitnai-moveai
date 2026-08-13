@@ -1,3 +1,5 @@
+import type { ExclusionCategory, ValidationStatus } from "../candidates/types";
+
 /**
  * GET /incidents/{id}/decision-package 응답 타입.
  * backend/app/schemas/decision_package.py + app/services/response_optimization.py의
@@ -126,3 +128,20 @@ export interface FreshnessAndCoverageSection {
   freshness_seconds: number | null;
   coverage_ratio: number | null;
 }
+
+/**
+ * Phase 17 전용 타입 — package["feasibility_and_exclusion"] + package["key_sensitivity_variables"]의
+ * 실제 형태 (backend/app/services/response_optimization.py build_decision_package 7~8번 항목 확인).
+ * validation_status/exclusion_category는 candidates 기능(features/candidates/types.ts)의
+ * ValidationStatus/ExclusionCategory와 같은 값이라 재사용한다.
+ */
+export interface FeasibilityAndExclusionEntry {
+  validation_status: ValidationStatus;
+  exclusion_category: ExclusionCategory | null;
+  exclusion_detail: string | null;
+  preconditions: string[];
+  has_simulation_result: boolean;
+}
+export type FeasibilityAndExclusionSection = Record<string, FeasibilityAndExclusionEntry>;
+
+export type KeySensitivityVariablesSection = Record<string, unknown[]>;
