@@ -4,13 +4,17 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { IncidentDetailPage } from "../IncidentDetailPage";
 import { listIncidents } from "../../features/incidents/api";
 import { getImpactDag } from "../../features/impact-dag/api";
+import { getLatestSnapshot } from "../../features/snapshot/api";
 import type { IncidentListItem } from "../../features/incidents/types";
 import type { ImpactDagApiResponse } from "../../features/impact-dag/types";
+import type { OperationalSnapshotApi } from "../../features/snapshot/types";
 
 vi.mock("../../features/incidents/api");
 vi.mock("../../features/impact-dag/api");
+vi.mock("../../features/snapshot/api");
 const mockListIncidents = vi.mocked(listIncidents);
 const mockGetImpactDag = vi.mocked(getImpactDag);
+const mockGetLatestSnapshot = vi.mocked(getLatestSnapshot);
 
 const incidents: IncidentListItem[] = [
   {
@@ -47,6 +51,19 @@ const dag: ImpactDagApiResponse = {
   edges: [],
 };
 
+const snapshot: OperationalSnapshotApi = {
+  id: 10,
+  incident_id: 2,
+  data_version: "v1",
+  scenario_version: "strike-v1",
+  assumptions: [],
+  operational_state: {},
+  quality_mode: "normal",
+  freshness_seconds: 125,
+  coverage_ratio: 1,
+  created_at: "2026-08-13T02:00:00Z",
+};
+
 function renderAt(id: string) {
   return render(
     <MemoryRouter initialEntries={[`/incidents/${id}`]}>
@@ -58,14 +75,17 @@ function renderAt(id: string) {
 }
 
 describe("IncidentDetailPage — 정상 시나리오(happy path)", () => {
-  it("사건 정보와 실제 DAG를 함께 불러와 대시보드를 렌더링한다", async () => {
+  it("사건 정보·실제 DAG·스냅샷 상태를 함께 불러와 대시보드를 렌더링한다", async () => {
     mockListIncidents.mockResolvedValue(incidents);
     mockGetImpactDag.mockResolvedValue(dag);
+    mockGetLatestSnapshot.mockResolvedValue(snapshot);
 
     renderAt("2");
 
     expect(await screen.findByText("항만 파업")).toBeInTheDocument();
     expect(screen.getByText("항만/운송 노동 파업")).toBeInTheDocument();
+    expect(screen.getByText("데이터 버전 v1")).toBeInTheDocument();
+    expect(screen.getByText(/2분 전/)).toBeInTheDocument();
   });
 });
 
@@ -73,6 +93,7 @@ describe("IncidentDetailPage — 로딩 상태", () => {
   it("응답이 오기 전에는 로딩 문구를 표시한다", () => {
     mockListIncidents.mockReturnValue(new Promise(() => {}));
     mockGetImpactDag.mockReturnValue(new Promise(() => {}));
+    mockGetLatestSnapshot.mockReturnValue(new Promise(() => {}));
 
     renderAt("2");
 
@@ -84,6 +105,17 @@ describe("IncidentDetailPage — 예외 케이스", () => {
   it("DAG 조회가 실패하면 에러 메시지를 표시한다", async () => {
     mockListIncidents.mockResolvedValue(incidents);
     mockGetImpactDag.mockRejectedValue(new Error("DAG 조회 실패"));
+    mockGetLatestSnapshot.mockResolvedValue(snapshot);
+
+    renderAt("2");
+
+    expect(await screen.findByText(/불러오지 못했습니다/)).toBeInTheDocument();
+  });
+
+  it("스냅샷 조회가 실패해도 에러 메시지를 표시한다", async () => {
+    mockListIncidents.mockResolvedValue(incidents);
+    mockGetImpactDag.mockResolvedValue(dag);
+    mockGetLatestSnapshot.mockRejectedValue(new Error("스냅샷 조회 실패"));
 
     renderAt("2");
 
@@ -95,6 +127,7 @@ describe("IncidentDetailPage — 경계값(존재하지 않는 사건)", () => {
   it("목록에 없는 id로 접근하면 사건을 찾을 수 없다는 메시지를 표시한다", async () => {
     mockListIncidents.mockResolvedValue(incidents);
     mockGetImpactDag.mockResolvedValue(dag);
+    mockGetLatestSnapshot.mockResolvedValue(snapshot);
 
     renderAt("999");
 

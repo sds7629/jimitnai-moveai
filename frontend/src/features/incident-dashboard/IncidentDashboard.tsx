@@ -1,7 +1,9 @@
 import { useState } from "react";
 import type { AiStatus, ApprovalAction, IncidentDashboardData, RankingMode } from "./types";
+import type { SnapshotSummary } from "../snapshot/format";
 import { Header } from "./components/Header";
 import { IncidentContextBar } from "./components/IncidentContextBar";
+import { SnapshotStatusBar } from "./components/SnapshotStatusBar";
 import { ImpactDag } from "./components/ImpactDag";
 import { CandidateRankingPanel } from "./components/CandidateRankingPanel";
 import { SopPanel } from "./components/SopPanel";
@@ -14,6 +16,8 @@ export interface IncidentDashboardProps {
   aiStatus?: AiStatus;
   rankingMode?: RankingMode;
   showSopDemoNote?: boolean;
+  /** 없으면 스냅샷 상태 바를 렌더링하지 않는다 (Phase 3 이전 호출부와의 호환) */
+  snapshot?: SnapshotSummary;
   onRerun?: () => void;
   onApprovalAction?: (action: ApprovalAction) => void;
 }
@@ -33,6 +37,7 @@ export function IncidentDashboard({
   aiStatus = "cache_fallback",
   rankingMode = "individual",
   showSopDemoNote = true,
+  snapshot,
   onRerun,
   onApprovalAction,
 }: IncidentDashboardProps) {
@@ -47,6 +52,7 @@ export function IncidentDashboard({
     >
       <Header aiStatus={aiStatus} theme={theme} onToggleTheme={toggleTheme} />
       <IncidentContextBar incident={data.incident} onRerun={onRerun} />
+      {snapshot && <SnapshotStatusBar snapshot={snapshot} />}
       <ImpactDag dag={data.dag} />
 
       <div className="flex gap-4 p-7">

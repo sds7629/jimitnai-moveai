@@ -4,6 +4,16 @@ import userEvent from "@testing-library/user-event";
 import { IncidentDashboard } from "../IncidentDashboard";
 import { strikeScenarioMock } from "../mockData";
 import { CandidateRow } from "../components/CandidateRow";
+import type { SnapshotSummary } from "../../snapshot/format";
+
+const sampleSnapshot: SnapshotSummary = {
+  dataVersion: "v1",
+  scenarioVersion: "strike-v1",
+  qualityModeLabel: "정상",
+  freshnessLabel: "5분 전",
+  coverageLabel: "100%",
+  assumptions: ["가정 A"],
+};
 
 describe("IncidentDashboard — 정상 시나리오(happy path)", () => {
   it("헤더/사건 컨텍스트/DAG/대응안/SOP/승인 패널을 모두 렌더링한다", () => {
@@ -96,6 +106,22 @@ describe("IncidentDashboard — 경계값/예외 케이스", () => {
     await user.click(staticSop);
     // 펼칠 절차 목록이 없으므로 클릭해도 오류 없이 그대로 유지된다
     expect(screen.queryByText(/조달ㆍ물류팀/)).toBeInTheDocument();
+  });
+});
+
+describe("IncidentDashboard — 운영 스냅샷 상태 바", () => {
+  it("snapshot prop이 있으면 데이터 버전/품질 모드/최신성/커버리지를 표시한다", () => {
+    render(<IncidentDashboard data={strikeScenarioMock} snapshot={sampleSnapshot} />);
+
+    expect(screen.getByText("데이터 버전 v1")).toBeInTheDocument();
+    expect(screen.getByText("정상")).toBeInTheDocument();
+    expect(screen.getByText(/5분 전/)).toBeInTheDocument();
+    expect(screen.getByText(/100%/)).toBeInTheDocument();
+  });
+
+  it("snapshot prop이 없으면 스냅샷 상태 바를 렌더링하지 않는다", () => {
+    render(<IncidentDashboard data={strikeScenarioMock} />);
+    expect(screen.queryByText(/데이터 버전/)).not.toBeInTheDocument();
   });
 });
 
