@@ -17,6 +17,7 @@ import { submitApproval } from "../features/approvals/api";
 import { APPROVAL_ACTION_TO_DECISION_TYPE } from "../features/approvals/types";
 import type { ApprovalAction } from "../features/incident-dashboard/types";
 import { useIncidentStream } from "../features/stream/useIncidentStream";
+import { useTheme } from "../lib/useTheme";
 import { dispatchSop, getSopStatus } from "../features/sop-dispatch/api";
 import type { SopStatusItemApi } from "../features/sop-dispatch/types";
 import { getTimeline, updateSopStatus } from "../features/execution-tracking/api";
@@ -74,6 +75,7 @@ export function IncidentDetailPage() {
   const [deadlineOverrunNotice, setDeadlineOverrunNotice] = useState(false);
   const [isUpdatingSopStatus, setIsUpdatingSopStatus] = useState(false);
   const [sopStatusUpdateError, setSopStatusUpdateError] = useState<string | undefined>(undefined);
+  const { theme } = useTheme();
 
   useEffect(() => {
     let cancelled = false;
@@ -267,7 +269,7 @@ export function IncidentDetailPage() {
 
   if (state.status === "loading") {
     return (
-      <div data-theme="dark" className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-secondary)]">
+      <div data-theme={theme} className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-secondary)]">
         불러오는 중...
       </div>
     );
@@ -275,7 +277,7 @@ export function IncidentDetailPage() {
 
   if (state.status === "error") {
     return (
-      <div data-theme="dark" className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--red)]">
+      <div data-theme={theme} className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--red)]">
         사건 정보를 불러오지 못했습니다: {state.message}
       </div>
     );
@@ -283,7 +285,7 @@ export function IncidentDetailPage() {
 
   if (state.status === "not_found") {
     return (
-      <div data-theme="dark" className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-secondary)]">
+      <div data-theme={theme} className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-secondary)]">
         사건을 찾을 수 없습니다.
       </div>
     );

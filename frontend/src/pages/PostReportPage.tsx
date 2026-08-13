@@ -19,6 +19,8 @@ import {
   type SopHistorySection,
 } from "../features/post-report/types";
 import { formatKrwToEokwon } from "../lib/currency";
+import { useTheme } from "../lib/useTheme";
+import { ThemeToggleButton } from "../components/ThemeToggleButton";
 import { OverviewAndDecisionCard } from "../features/post-report/components/OverviewAndDecisionCard";
 import { ReviewedCandidatesTable } from "../features/post-report/components/ReviewedCandidatesTable";
 import { ExpectedProgressAndChanges } from "../features/post-report/components/ExpectedProgressAndChanges";
@@ -109,6 +111,7 @@ export function PostReportPage() {
   const { id } = useParams<{ id: string }>();
   const incidentId = Number(id);
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     let cancelled = false;
@@ -133,7 +136,7 @@ export function PostReportPage() {
 
   if (state.status === "loading") {
     return (
-      <div data-theme="dark" className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-secondary)]">
+      <div data-theme={theme} className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-secondary)]">
         불러오는 중...
       </div>
     );
@@ -141,7 +144,7 @@ export function PostReportPage() {
 
   if (state.status === "error") {
     return (
-      <div data-theme="dark" className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--red)]">
+      <div data-theme={theme} className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--red)]">
         사후보고서를 불러오지 못했습니다: {state.message}
       </div>
     );
@@ -222,15 +225,18 @@ export function PostReportPage() {
   const improvements = (postReport.sections["12_향후_SOP_모델_데이터_개선사항"] ?? []) as FutureImprovementsSection;
 
   return (
-    <div data-theme="dark" className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-primary)]">
-      <div className="mb-5 flex items-center gap-3">
-        <div className="text-[19px] font-bold">사후보고서</div>
-        <span className="rounded-full border border-[var(--amber)] px-2.5 py-1 text-[11px] font-semibold text-[var(--amber)]">
-          {postReport.report_status}
-        </span>
-        <span className="rounded-full border border-[var(--border-mid)] px-2.5 py-1 text-[11px] text-[var(--text-secondary)]">
-          실적: {postReport.actual_status}
-        </span>
+    <div data-theme={theme} className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-primary)]">
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="text-[19px] font-bold">사후보고서</div>
+          <span className="rounded-full border border-[var(--amber)] px-2.5 py-1 text-[11px] font-semibold text-[var(--amber)]">
+            {postReport.report_status}
+          </span>
+          <span className="rounded-full border border-[var(--border-mid)] px-2.5 py-1 text-[11px] text-[var(--text-secondary)]">
+            실적: {postReport.actual_status}
+          </span>
+        </div>
+        <ThemeToggleButton theme={theme} onToggleTheme={toggleTheme} />
       </div>
 
       <div className="mb-5 rounded-md border border-dashed border-[var(--border-dashed)] bg-[var(--panel-bg-2)] px-3 py-2.5 text-[11px] text-[var(--text-secondary)]">

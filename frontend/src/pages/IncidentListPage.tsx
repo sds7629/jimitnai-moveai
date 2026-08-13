@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { listIncidents } from "../features/incidents/api";
 import type { IncidentListItem } from "../features/incidents/types";
+import { useTheme } from "../lib/useTheme";
 
 type LoadState =
   | { status: "loading" }
@@ -15,6 +16,7 @@ type LoadState =
  */
 export function IncidentListPage() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  const { theme } = useTheme();
 
   useEffect(() => {
     let cancelled = false;
@@ -37,7 +39,7 @@ export function IncidentListPage() {
 
   return (
     <div
-      data-theme="dark"
+      data-theme={theme}
       className="min-h-screen bg-[var(--bg-page)] px-7 py-6 text-[var(--text-primary)]"
     >
       <div className="mb-5 flex items-center justify-between">

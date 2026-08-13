@@ -1,5 +1,5 @@
-import { useState } from "react";
 import type { AiStatus, ApprovalAction, IncidentDashboardData } from "./types";
+import { useTheme } from "../../lib/useTheme";
 import type { SnapshotSummary } from "../snapshot/format";
 import type { DecisionPackageApi } from "../decision-package/types";
 import type { SopStatusItemApi } from "../sop-dispatch/types";
@@ -17,7 +17,9 @@ import { ApprovalPanel } from "./components/ApprovalPanel";
 
 export interface IncidentDashboardProps {
   data: IncidentDashboardData;
-  /** 라이트/다크 테마 초기값. 기본 다크. 헤더 우상단 토글 버튼으로 이후 전환 가능(내부 상태로 관리). */
+  /** 라이트/다크 테마 초기값 — localStorage에 저장된 선택이 이미 있으면 그게 우선이고, 없을 때만
+   * 이 값이 초기값으로 쓰인다. 헤더 우상단 토글 버튼으로 전환하면 앱 전역에서 공유하는
+   * localStorage 값(useTheme, frontend/src/lib/useTheme.ts)에 반영되어 다른 페이지에도 유지된다. */
   theme?: "dark" | "light";
   aiStatus?: AiStatus;
   showSopDemoNote?: boolean;
@@ -78,9 +80,10 @@ export function IncidentDashboard({
   onApprovalSubmit,
   onSopStatusUpdate,
 }: IncidentDashboardProps) {
-  // theme prop은 초기값으로만 쓰고, 이후 전환은 헤더의 토글 버튼으로 내부 상태에서 관리한다
-  const [theme, setTheme] = useState<"dark" | "light">(initialTheme);
-  const toggleTheme = () => setTheme((current) => (current === "dark" ? "light" : "dark"));
+  // theme prop은 localStorage에 아직 저장된 선택이 없을 때만 쓰이는 초기값이고, 이후 전환은
+  // 앱 전역에서 공유하는 useTheme 훅(localStorage 백업)이 관리한다 — 헤더에서 전환하면 다른
+  // 페이지(사후보고서 등)에서도 같은 선택이 유지된다.
+  const { theme, toggleTheme } = useTheme(initialTheme);
 
   return (
     <div
