@@ -13,6 +13,9 @@ import { mapCandidatesToDashboard } from "../features/candidates/mapping";
 import type { CandidateApi } from "../features/candidates/types";
 import { getDecisionPackage } from "../features/decision-package/api";
 import type { DecisionPackageApi } from "../features/decision-package/types";
+import { submitApproval } from "../features/approvals/api";
+import { APPROVAL_ACTION_TO_DECISION_TYPE } from "../features/approvals/types";
+import type { ApprovalAction } from "../features/incident-dashboard/types";
 
 type LoadState =
   | { status: "loading" }
@@ -49,6 +52,8 @@ export function IncidentDetailPage() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [isRerunning, setIsRerunning] = useState(false);
   const [rerunError, setRerunError] = useState<string | undefined>(undefined);
+  const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
+  const [approvalError, setApprovalError] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,6 +117,34 @@ export function IncidentDetailPage() {
     }
   }, [incidentId]);
 
+  const handleApprovalSubmit = useCallback(
+    async (action: ApprovalAction, reason: string, approver: string) => {
+      setIsSubmittingApproval(true);
+      setApprovalError(undefined);
+      try {
+        await submitApproval(incidentId, {
+          decision_type: APPROVAL_ACTION_TO_DECISION_TYPE[action],
+          reason,
+          approver,
+        });
+        // 수정요청은 서버에서 재시뮬레이션을 트리거하므로, 모든 결정 타입에 대해 동일하게
+        // candidates·decision-package를 다시 불러와 최신 상태를 반영한다.
+        const [{ candidates }, decisionPackage] = await Promise.all([
+          listCandidates(incidentId),
+          getDecisionPackage(incidentId),
+        ]);
+        setState((prev) =>
+          prev.status === "success" ? { ...prev, candidatesApi: candidates, decisionPackage } : prev,
+        );
+      } catch (error: unknown) {
+        setApprovalError(error instanceof Error ? error.message : "알 수 없는 오류");
+      } finally {
+        setIsSubmittingApproval(false);
+      }
+    },
+    [incidentId],
+  );
+
   if (state.status === "loading") {
     return (
       <div data-theme="dark" className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-secondary)]">
@@ -156,6 +189,9 @@ export function IncidentDetailPage() {
       isRerunning={isRerunning}
       rerunError={rerunError}
       onRerun={handleRerun}
+      isSubmittingApproval={isSubmittingApproval}
+      approvalError={approvalError}
+      onApprovalSubmit={handleApprovalSubmit}
     />
   );
 }

@@ -106,13 +106,16 @@ describe("IncidentDashboard — 인터랙션", () => {
     expect(button).toBeDisabled();
   });
 
-  it("승인 액션 버튼 클릭 시 선택한 action과 함께 onApprovalAction이 호출된다", async () => {
+  it("사유·승인자 입력 후 승인 액션 버튼 클릭 시 선택한 action과 함께 onApprovalSubmit이 호출된다", async () => {
     const user = userEvent.setup();
-    const onApprovalAction = vi.fn();
-    render(<IncidentDashboard data={strikeScenarioMock} onApprovalAction={onApprovalAction} />);
+    const onApprovalSubmit = vi.fn();
+    render(<IncidentDashboard data={strikeScenarioMock} onApprovalSubmit={onApprovalSubmit} />);
 
+    await user.type(screen.getByLabelText("승인자"), "김담당");
+    await user.type(screen.getByLabelText("사유"), "반려 사유입니다");
     await user.click(screen.getByRole("button", { name: "반려" }));
-    expect(onApprovalAction).toHaveBeenCalledWith("reject");
+
+    expect(onApprovalSubmit).toHaveBeenCalledWith("reject", "반려 사유입니다", "김담당");
   });
 });
 

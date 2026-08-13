@@ -24,8 +24,11 @@ export interface IncidentDashboardProps {
   /** POST /simulate가 진행 중일 때 "다시 실행" 버튼에 로딩 상태를 표시 (Phase 5) */
   isRerunning?: boolean;
   rerunError?: string;
+  /** POST /approvals가 진행 중일 때 승인 액션 버튼들을 잠근다 (Phase 7) */
+  isSubmittingApproval?: boolean;
+  approvalError?: string;
   onRerun?: () => void;
-  onApprovalAction?: (action: ApprovalAction) => void;
+  onApprovalSubmit?: (action: ApprovalAction, reason: string, approver: string) => void;
 }
 
 /**
@@ -46,8 +49,10 @@ export function IncidentDashboard({
   decisionPackage,
   isRerunning = false,
   rerunError,
+  isSubmittingApproval = false,
+  approvalError,
   onRerun,
-  onApprovalAction,
+  onApprovalSubmit,
 }: IncidentDashboardProps) {
   // theme prop은 초기값으로만 쓰고, 이후 전환은 헤더의 토글 버튼으로 내부 상태에서 관리한다
   const [theme, setTheme] = useState<"dark" | "light">(initialTheme);
@@ -77,7 +82,11 @@ export function IncidentDashboard({
       <div className="flex gap-4 p-7">
         <CandidateRankingPanel candidates={data.candidates} excludedCandidates={data.excludedCandidates} />
         <SopPanel sops={data.sops} matchedCount={data.matchedSopCount} showDemoNote={showSopDemoNote} />
-        <ApprovalPanel onAction={onApprovalAction} />
+        <ApprovalPanel
+          isSubmitting={isSubmittingApproval}
+          submitError={approvalError}
+          onSubmit={onApprovalSubmit}
+        />
       </div>
     </div>
   );

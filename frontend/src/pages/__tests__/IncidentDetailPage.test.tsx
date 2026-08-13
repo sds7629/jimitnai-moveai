@@ -8,6 +8,7 @@ import { getImpactDag } from "../../features/impact-dag/api";
 import { getLatestSnapshot } from "../../features/snapshot/api";
 import { listCandidates, runSimulation } from "../../features/candidates/api";
 import { getDecisionPackage } from "../../features/decision-package/api";
+import { submitApproval } from "../../features/approvals/api";
 import type { IncidentListItem } from "../../features/incidents/types";
 import type { ImpactDagApiResponse } from "../../features/impact-dag/types";
 import type { OperationalSnapshotApi } from "../../features/snapshot/types";
@@ -19,12 +20,14 @@ vi.mock("../../features/impact-dag/api");
 vi.mock("../../features/snapshot/api");
 vi.mock("../../features/candidates/api");
 vi.mock("../../features/decision-package/api");
+vi.mock("../../features/approvals/api");
 const mockListIncidents = vi.mocked(listIncidents);
 const mockGetImpactDag = vi.mocked(getImpactDag);
 const mockGetLatestSnapshot = vi.mocked(getLatestSnapshot);
 const mockListCandidates = vi.mocked(listCandidates);
 const mockRunSimulation = vi.mocked(runSimulation);
 const mockGetDecisionPackage = vi.mocked(getDecisionPackage);
+const mockSubmitApproval = vi.mocked(submitApproval);
 
 const incidents: IncidentListItem[] = [
   {
@@ -252,6 +255,53 @@ describe("IncidentDetailPage — 다시 실행(재시뮬레이션)", () => {
 
     expect(await screen.findByText(/재시뮬레이션 실패/)).toBeInTheDocument();
     // 기존 후보 데이터는 그대로 남아있어야 한다
+    expect(screen.getByText("안전재고 사전 당김")).toBeInTheDocument();
+  });
+});
+
+describe("IncidentDetailPage — 담당자 승인", () => {
+  it("승인 폼 제출 시 POST /approvals를 한글 decision_type으로 호출한다", async () => {
+    const user = userEvent.setup();
+    mockAllSuccess();
+    mockSubmitApproval.mockResolvedValue({
+      id: 1,
+      incident_id: 2,
+      decision_type: "승인",
+      reason: "재고 확보 완료",
+      approver: "김담당",
+      decided_at: "2026-08-13T03:00:00Z",
+      data_version_ref: "v1",
+      scenario_version_ref: "strike-v1",
+      created_at: "2026-08-13T03:00:00Z",
+    });
+
+    renderAt("2");
+    await screen.findByText("안전재고 사전 당김");
+
+    await user.type(screen.getByLabelText("승인자"), "김담당");
+    await user.type(screen.getByLabelText("사유"), "재고 확보 완료");
+    await user.click(screen.getByRole("button", { name: "승인" }));
+
+    expect(mockSubmitApproval).toHaveBeenCalledWith(2, {
+      decision_type: "승인",
+      reason: "재고 확보 완료",
+      approver: "김담당",
+    });
+  });
+
+  it("승인 제출이 실패하면 에러 문구를 보여주고 기존 화면은 유지한다", async () => {
+    const user = userEvent.setup();
+    mockAllSuccess();
+    mockSubmitApproval.mockRejectedValue(new Error("검증 실패"));
+
+    renderAt("2");
+    await screen.findByText("안전재고 사전 당김");
+
+    await user.type(screen.getByLabelText("승인자"), "김담당");
+    await user.type(screen.getByLabelText("사유"), "사유 텍스트");
+    await user.click(screen.getByRole("button", { name: "승인" }));
+
+    expect(await screen.findByText(/제출 실패/)).toBeInTheDocument();
     expect(screen.getByText("안전재고 사전 당김")).toBeInTheDocument();
   });
 });
