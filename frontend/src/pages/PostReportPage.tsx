@@ -4,10 +4,12 @@ import { getCostAttribution, getPostReport } from "../features/post-report/api";
 import {
   COST_ATTRIBUTION_LABELS,
   POST_REPORT_SECTIONS,
+  type AvoidedLossSection,
   type CandidatesReviewedSection,
   type CostAttributionApi,
   type DeviationHistorySection,
   type DynamicVariableChangesSection,
+  type ExpectedVsActualLossSection,
   type ExpectedVsActualProgressSection,
   type FinalDecisionSection,
   type OverviewSection,
@@ -19,9 +21,10 @@ import { OverviewAndDecisionCard } from "../features/post-report/components/Over
 import { ReviewedCandidatesTable } from "../features/post-report/components/ReviewedCandidatesTable";
 import { ExpectedProgressAndChanges } from "../features/post-report/components/ExpectedProgressAndChanges";
 import { SopHistoryAndDeviations } from "../features/post-report/components/SopHistoryAndDeviations";
+import { LossSettlementCard } from "../features/post-report/components/LossSettlementCard";
 
-/** Phase 19~22에서 전용 UI로 옮긴 섹션 — 아래 일반 JSON 렌더링 목록에서는 제외한다.
- * 앞으로 Phase 23~24가 섹션을 하나씩 옮길 때마다 이 목록에 키를 추가한다
+/** Phase 19~23에서 전용 UI로 옮긴 섹션 — 아래 일반 JSON 렌더링 목록에서는 제외한다.
+ * 앞으로 Phase 24가 섹션을 옮길 때마다 이 목록에 키를 추가한다
  * (DecisionPackagePanel의 MIGRATED_SECTION_KEYS와 같은 패턴, frontend/docs/FEATURE_PHASES.md Phase 19~24). */
 const MIGRATED_SECTION_KEYS = new Set([
   "1_사건_개요와_발생시점",
@@ -30,6 +33,9 @@ const MIGRATED_SECTION_KEYS = new Set([
   "4_검토한_대응안과_제외_사유",
   "5_최종_결정과_승인자",
   "6_SOP_발송_수신_수락_실행_이력",
+  "7_예상_손실과_실제_손실",
+  "8_회피한_손실과_추가_발생_비용",
+  "9_LD_DND_귀책_및_비용_부담_주체",
   "11_자원_확보_실패_실행_편차와_에스컬레이션_이력",
 ]);
 
@@ -65,6 +71,15 @@ const EMPTY_CHANGES: DynamicVariableChangesSection = {
 };
 const EMPTY_SOP_HISTORY: SopHistorySection = { sop_count: 0, dispatches: [] };
 const EMPTY_DEVIATION_HISTORY: DeviationHistorySection = { deviation_event_count: 0, events: [] };
+const EMPTY_LOSS: ExpectedVsActualLossSection = {
+  expected_loss: { baseline: { available: false }, approved_candidate: { available: false } },
+  actual_status: "미확정",
+  actual_loss: { available: false, reason: "-" },
+};
+const EMPTY_AVOIDED_LOSS: AvoidedLossSection = {
+  expected_avoided_loss: { available: false, amount: null, baseline: null, approved: null, reason: "-" },
+  additional_cost_incurred: { available: false, reason: "-" },
+};
 
 type LoadState =
   | { status: "loading" }
@@ -173,6 +188,19 @@ export function PostReportPage() {
     deviation_event_count: rawDeviationHistory.deviation_event_count ?? EMPTY_DEVIATION_HISTORY.deviation_event_count,
     events: rawDeviationHistory.events ?? EMPTY_DEVIATION_HISTORY.events,
   };
+  const rawLoss = (postReport.sections["7_예상_손실과_실제_손실"] ?? {}) as Partial<ExpectedVsActualLossSection>;
+  const loss: ExpectedVsActualLossSection = {
+    expected_loss: rawLoss.expected_loss ?? EMPTY_LOSS.expected_loss,
+    actual_status: rawLoss.actual_status ?? EMPTY_LOSS.actual_status,
+    actual_loss: rawLoss.actual_loss ?? EMPTY_LOSS.actual_loss,
+  };
+  const rawAvoidedLoss = (postReport.sections["8_회피한_손실과_추가_발생_비용"] ?? {}) as Partial<AvoidedLossSection>;
+  const avoidedLoss: AvoidedLossSection = {
+    expected_avoided_loss: rawAvoidedLoss.expected_avoided_loss ?? EMPTY_AVOIDED_LOSS.expected_avoided_loss,
+    additional_cost_incurred: rawAvoidedLoss.additional_cost_incurred ?? EMPTY_AVOIDED_LOSS.additional_cost_incurred,
+  };
+  // 섹션 9는 costAttribution 상태(GET /incidents/{id}/cost-attribution)와 같은 데이터이므로
+  // sections["9_LD_DND_귀책_및_비용_부담_주체"]에서 다시 추출하지 않는다.
 
   return (
     <div data-theme="dark" className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-primary)]">
@@ -208,6 +236,10 @@ export function PostReportPage() {
         {costAttribution.classification_note && (
           <div className="mt-2 text-[10.5px] text-[var(--text-tertiary)]">{costAttribution.classification_note}</div>
         )}
+      </div>
+
+      <div className="mb-5">
+        <LossSettlementCard loss={loss} avoidedLoss={avoidedLoss} costAttribution={costAttribution} />
       </div>
 
       <div className="mb-5">

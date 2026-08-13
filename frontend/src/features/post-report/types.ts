@@ -220,3 +220,56 @@ export interface DeviationHistorySection {
   deviation_event_count: number;
   events: TimelineEventApi[];
 }
+
+/**
+ * Phase 23 전용 타입 — sections["7_예상_손실과_실제_손실"]의 실제 형태
+ * (backend/app/services/post_report.py _section_7_expected_vs_actual_loss 확인).
+ * expected_loss는 섹션 2의 ExpectedProgressApi(baseline/승인후보)를 그대로 재사용한다.
+ */
+export interface ExpectedVsActualLossSection {
+  expected_loss: ExpectedProgressApi;
+  actual_status: string;
+  actual_loss: UnavailableWithReasonApi;
+}
+
+/**
+ * Phase 23 전용 타입 — backend/app/services/cost_attribution.py
+ * compute_expected_avoided_loss()가 만드는 형태. baseline/승인 후보 중 하나라도 없거나
+ * 시뮬레이션 결과가 없으면 available:false + reason, 있으면 available:true + amount(양수=절감) + note.
+ */
+export interface AvoidedLossCandidateRefApi {
+  candidate_id: number;
+  candidate_type: string;
+  description: string;
+  expected_loss: number | null;
+  data_version: string | null;
+  scenario_version: string | null;
+  calculated_at: string | null;
+  has_simulation_result: boolean;
+}
+
+export type ExpectedAvoidedLossApi =
+  | {
+      available: false;
+      amount: null;
+      baseline: AvoidedLossCandidateRefApi | null;
+      approved: AvoidedLossCandidateRefApi | null;
+      reason: string;
+    }
+  | {
+      available: true;
+      amount: number;
+      baseline: AvoidedLossCandidateRefApi | null;
+      approved: AvoidedLossCandidateRefApi | null;
+      reason: null;
+      note: string;
+    };
+
+/**
+ * Phase 23 전용 타입 — sections["8_회피한_손실과_추가_발생_비용"]의 실제 형태
+ * (backend/app/services/post_report.py _section_8_avoided_loss 확인).
+ */
+export interface AvoidedLossSection {
+  expected_avoided_loss: ExpectedAvoidedLossApi;
+  additional_cost_incurred: UnavailableWithReasonApi;
+}
