@@ -306,6 +306,58 @@ def test_embed_text_wraps_client_exception_as_gemini_api_error():
         embed_text("hello", client=client)
 
 
+# ------------------------------------------------------------------
+# GEMINI_USE_VERTEX_AI wiring -- added after discovering (via a real key)
+# that this project's actual GEMINI_API_KEY is a Vertex AI Express Mode key,
+# which 403s with API_KEY_SERVICE_BLOCKED unless vertexai=True is passed to
+# genai.Client(). embed_text() only builds its own client (and so only
+# consults this flag) when no `client=` is injected, so these two tests
+# monkeypatch `_build_client` itself to capture what it was called with,
+# instead of injecting a fake client (which would bypass this wiring
+# entirely, like every other test above).
+# ------------------------------------------------------------------
+def _fake_embed_content_client(*, api_key=None, use_vertex_ai=True):
+    client = MagicMock()
+    client.models.embed_content.return_value = MagicMock(embeddings=[MagicMock(values=[0.0] * EMBEDDING_DIM)])
+    return client
+
+
+def test_embed_text_defaults_to_settings_use_vertex_ai(monkeypatch):
+    from app.core.config import settings
+
+    captured = {}
+
+    def _capturing_build_client(api_key, use_vertex_ai=True):
+        captured["use_vertex_ai"] = use_vertex_ai
+        return _fake_embed_content_client()
+
+    monkeypatch.setattr(settings, "gemini_api_key", "fake-key")
+    monkeypatch.setattr(settings, "gemini_use_vertex_ai", True)
+    monkeypatch.setattr("app.llm.gemini_embeddings._build_client", _capturing_build_client)
+
+    embed_text("hello")
+
+    assert captured["use_vertex_ai"] is True
+
+
+def test_embed_text_explicit_use_vertex_ai_overrides_settings(monkeypatch):
+    from app.core.config import settings
+
+    captured = {}
+
+    def _capturing_build_client(api_key, use_vertex_ai=True):
+        captured["use_vertex_ai"] = use_vertex_ai
+        return _fake_embed_content_client()
+
+    monkeypatch.setattr(settings, "gemini_api_key", "fake-key")
+    monkeypatch.setattr(settings, "gemini_use_vertex_ai", True)  # settings say True...
+    monkeypatch.setattr("app.llm.gemini_embeddings._build_client", _capturing_build_client)
+
+    embed_text("hello", use_vertex_ai=False)  # ...but the explicit call param wins
+
+    assert captured["use_vertex_ai"] is False
+
+
 # ============================================================
 # Seed script: doc-type-specific chunking actually lands in the DB, and
 # reruns are idempotent (no duplicate documents).

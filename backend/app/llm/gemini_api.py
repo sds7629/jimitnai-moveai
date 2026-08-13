@@ -17,14 +17,16 @@ class GeminiAPIProvider(LLMProvider):
         api_key: Optional[str] = None,
         model: str = DEFAULT_MODEL,
         client=None,
+        use_vertex_ai: bool = True,
     ):
         if client is None and not api_key:
             raise GeminiAPIError("GEMINI_API_KEY가 설정되지 않았습니다.")
         self.model = model
-        self._client = client or self._build_client(api_key)
+        self.use_vertex_ai = use_vertex_ai  # introspectable for tests/debugging
+        self._client = client or self._build_client(api_key, use_vertex_ai)
 
     @staticmethod
-    def _build_client(api_key: str):
+    def _build_client(api_key: str, use_vertex_ai: bool = True):
         try:
             from google import genai
         except ImportError as exc:
@@ -32,7 +34,15 @@ class GeminiAPIProvider(LLMProvider):
                 "google-genai 패키지가 설치되어 있지 않습니다. "
                 "`pip install google-genai`로 설치하세요."
             ) from exc
-        return genai.Client(api_key=api_key)
+        # 실키 테스트로 확인(2026-08-13): 이 프로젝트에서 발급된 API 키는 일반
+        # Gemini Developer API(AI Studio) 키가 아니라 Vertex AI Express Mode
+        # 키다(Cloud Console 자격증명 화면에 "vertex-express" 서비스 계정 바인딩,
+        # 제한사항 "Agent Platform API"로 표시됨). 이런 키로 vertexai=False(기본
+        # google-genai 동작, generativelanguage.googleapis.com 대상)를 쓰면
+        # 403 PERMISSION_DENIED(API_KEY_SERVICE_BLOCKED)가 난다 -- 반드시
+        # vertexai=True로 Vertex AI 엔드포인트를 타야 한다. GEMINI_USE_VERTEX_AI
+        # 환경변수로 끌 수 있게 열어둔다(일반 AI Studio 키를 쓰게 되는 경우 대비).
+        return genai.Client(api_key=api_key, vertexai=use_vertex_ai)
 
     def generate(
         self,
