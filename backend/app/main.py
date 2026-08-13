@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.decision_package import router as decision_package_router
 from app.api.impact_dag import router as impact_dag_router
 from app.api.incidents import router as incidents_router
 from app.api.simulate import router as simulate_router
@@ -32,6 +33,7 @@ app.include_router(incidents_router)
 app.include_router(snapshots_router)
 app.include_router(impact_dag_router)
 app.include_router(simulate_router)
+app.include_router(decision_package_router)
 
 
 @app.get("/health")
