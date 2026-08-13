@@ -9,16 +9,19 @@ import {
   type DynamicVariableChangesSection,
   type ExpectedVsActualProgressSection,
   type FinalDecisionSection,
+  type FutureImprovementsSection,
   type OverviewSection,
   type PostReportApi,
+  type SimulationErrorSection,
 } from "../features/post-report/types";
 import { formatKrwToEokwon } from "../lib/currency";
 import { OverviewAndDecisionCard } from "../features/post-report/components/OverviewAndDecisionCard";
 import { ReviewedCandidatesTable } from "../features/post-report/components/ReviewedCandidatesTable";
 import { ExpectedProgressAndChanges } from "../features/post-report/components/ExpectedProgressAndChanges";
+import { SimulationErrorAndImprovements } from "../features/post-report/components/SimulationErrorAndImprovements";
 
-/** Phase 19~21에서 전용 UI로 옮긴 섹션 — 아래 일반 JSON 렌더링 목록에서는 제외한다.
- * 앞으로 Phase 22~24가 섹션을 하나씩 옮길 때마다 이 목록에 키를 추가한다
+/** Phase 19~24에서 전용 UI로 옮긴 섹션 — 아래 일반 JSON 렌더링 목록에서는 제외한다.
+ * 앞으로 남은 섹션을 하나씩 옮길 때마다 이 목록에 키를 추가한다
  * (DecisionPackagePanel의 MIGRATED_SECTION_KEYS와 같은 패턴, frontend/docs/FEATURE_PHASES.md Phase 19~24). */
 const MIGRATED_SECTION_KEYS = new Set([
   "1_사건_개요와_발생시점",
@@ -26,6 +29,8 @@ const MIGRATED_SECTION_KEYS = new Set([
   "3_주요_동적_변수의_변화",
   "4_검토한_대응안과_제외_사유",
   "5_최종_결정과_승인자",
+  "10_시뮬레이션_오차와_가정의_영향",
+  "12_향후_SOP_모델_데이터_개선사항",
 ]);
 
 const EMPTY_OVERVIEW: OverviewSection = {
@@ -57,6 +62,11 @@ const EMPTY_CHANGES: DynamicVariableChangesSection = {
   snapshot_count: 0,
   versions: [],
   changes_summary: [],
+};
+const EMPTY_SIMULATION_ERROR: SimulationErrorSection = {
+  error_calculable: false,
+  reason: "-",
+  candidates: [],
 };
 
 type LoadState =
@@ -155,6 +165,16 @@ export function PostReportPage() {
     excluded_count: rawReviewed.excluded_count ?? EMPTY_CANDIDATES_REVIEWED.excluded_count,
     candidates: rawReviewed.candidates ?? EMPTY_CANDIDATES_REVIEWED.candidates,
   };
+  const rawSimulationError = (postReport.sections["10_시뮬레이션_오차와_가정의_영향"] ??
+    {}) as Partial<SimulationErrorSection>;
+  const simulationError: SimulationErrorSection = {
+    error_calculable: rawSimulationError.error_calculable ?? EMPTY_SIMULATION_ERROR.error_calculable,
+    reason: rawSimulationError.reason ?? EMPTY_SIMULATION_ERROR.reason,
+    candidates: rawSimulationError.candidates ?? EMPTY_SIMULATION_ERROR.candidates,
+  };
+  // 섹션 12는 다른 섹션들과 달리 object가 아니라 배열 자체다(_section_12_future_improvements가
+  // list[dict]를 직접 반환) — Partial<T> + 필드별 기본값 패턴이 아니라 배열째로 기본값 처리한다.
+  const improvements = (postReport.sections["12_향후_SOP_모델_데이터_개선사항"] ?? []) as FutureImprovementsSection;
 
   return (
     <div data-theme="dark" className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-primary)]">
@@ -202,6 +222,10 @@ export function PostReportPage() {
 
       <div className="mb-5">
         <ReviewedCandidatesTable section={candidatesReviewed} />
+      </div>
+
+      <div className="mb-5">
+        <SimulationErrorAndImprovements simulationError={simulationError} improvements={improvements} />
       </div>
 
       <div className="rounded-[10px] border border-[var(--border)] bg-[var(--panel-bg)] p-4.5">
