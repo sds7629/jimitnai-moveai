@@ -27,8 +27,8 @@ WITH inc AS (
   SELECT inc.id, 'v1', 'scenario-congestion-v1',
     '["부품 시간당 소비량은 최근 7일 평균으로 가정", "대체항 가용 용량은 평시 30% 수준으로 가정"]'::jsonb,
     '{
-       "inventory": {"PT-ENGINE-01": {"qty": 480, "unit": "ea", "hourly_consumption": 20, "safety_stock": 200}},
-       "production": {"PO-2026-1001": {"line": "L2", "status": "정상가동", "capacity_per_hour": 15}},
+       "inventory": {"PT-ENGINE-01": {"qty": 480, "unit": "ea", "hourly_consumption": 20, "safety_stock": 200, "unit_value_krw": 850000}},
+       "production": {"PO-2026-1001": {"line": "L2", "status": "정상가동", "capacity_per_hour": 15, "finished_unit_value_krw": 38000000}},
        "transport": {"CTN-1001": {"status": "반출대기", "eta": null}, "CTN-1002": {"status": "하역중", "eta": null}}
      }'::jsonb,
     'normal', 3600, 0.9500
@@ -102,8 +102,8 @@ WITH inc AS (
   SELECT inc.id, 'v1', 'scenario-strike-v1',
     '["파업 기간 중 대체 인력 투입 가능성은 없다고 가정", "긴급운송 수단 확보는 평시 대비 50% 리드타임 증가로 가정"]'::jsonb,
     '{
-       "inventory": {"PT-BATTERY-01": {"qty": 300, "unit": "ea", "hourly_consumption": 25, "safety_stock": 150}},
-       "production": {"PO-2026-2001": {"line": "L1", "status": "정상가동", "capacity_per_hour": 12}},
+       "inventory": {"PT-BATTERY-01": {"qty": 300, "unit": "ea", "hourly_consumption": 25, "safety_stock": 150, "unit_value_krw": 9500000}},
+       "production": {"PO-2026-2001": {"line": "L1", "status": "정상가동", "capacity_per_hour": 12, "finished_unit_value_krw": 52000000}},
        "transport": {"CTN-2001": {"status": "하역중단", "eta": null}, "CTN-2002": {"status": "하역중단", "eta": null}}
      }'::jsonb,
     'normal', 1800, 0.9000
@@ -177,8 +177,8 @@ WITH inc AS (
   SELECT inc.id, 'v1', 'scenario-tariff-v1',
     '["추가 서류 준비 소요시간은 평균 통관사례 기준 48시간으로 가정"]'::jsonb,
     '{
-       "inventory": {"PT-CHIP-01": {"qty": 600, "unit": "ea", "hourly_consumption": 10, "safety_stock": 300}},
-       "production": {"PO-2026-3001": {"line": "L3", "status": "정상가동", "capacity_per_hour": 8}},
+       "inventory": {"PT-CHIP-01": {"qty": 600, "unit": "ea", "hourly_consumption": 10, "safety_stock": 300, "unit_value_krw": 15000}},
+       "production": {"PO-2026-3001": {"line": "L3", "status": "정상가동", "capacity_per_hour": 8, "finished_unit_value_krw": 42000000}},
        "transport": {"CTN-3001": {"status": "통관대기", "eta": null}}
      }'::jsonb,
     'limited', 7200, 0.7500

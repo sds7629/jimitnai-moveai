@@ -159,6 +159,13 @@ def _build_simulation_prompt(
 {operational_state_json}
 
 ## 지시사항
+- expected_loss/p90/cvar는 모두 **원(KRW) 단위의 화폐 숫자**다. 만원/억원 단위가 아니라 항상 원 단위
+  정수(또는 정수에 가까운 값)로 응답하라 (예: 1.2억원이면 120000000).
+- 위 운영 스냅샷(operational_state)에는 부품 단가(`unit_value_krw`)와 완성품 가치
+  (`finished_unit_value_krw`) 등 화폐 필드가 이미 포함돼 있다. expected_loss/p90/cvar는 반드시
+  이 필드들과 재고 수량(`qty`)ㆍ시간당 소비(`hourly_consumption`)ㆍ생산능력(`capacity_per_hour`) 등
+  스냅샷의 실제 값을 근거로 계산하라 (예: 라인 정지 시간당 손실 ≈ capacity_per_hour ×
+  finished_unit_value_krw). 스냅샷에 있는 화폐 데이터를 무시하고 임의로 작은 값을 지어내지 마라.
 - 이 대응안을 적용했을 때의 기대손실(expected_loss), P90 손실(p90), CVaR(cvar, 화폐 단위 숫자),
   신뢰도(confidence, 0~1 사이 소수), 핵심 민감도 변수(sensitivity_variables, 문자열 배열, 최소 1개)를
   산출하라.

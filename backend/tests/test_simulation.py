@@ -28,6 +28,8 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
 
+from types import SimpleNamespace
+
 from app.llm import GeminiAPIError
 from app.main import app
 from app.repositories.response_candidates import ResponseCandidateRepository
@@ -35,7 +37,11 @@ from app.repositories.simulation_results import SimulationResultRepository
 from app.services.constraint_validation import validate_candidates
 from app.services.operational_graph import IncidentNotFoundError
 from app.services.response_design import generate_candidates
-from app.services.simulation import SimulationValidationError, simulate_candidates
+from app.services.simulation import (
+    SimulationValidationError,
+    _build_simulation_prompt,
+    simulate_candidates,
+)
 
 client = TestClient(app)
 _RUN_ID = uuid.uuid4().hex[:8]
@@ -395,3 +401,87 @@ def test_simulate_candidates_returns_empty_list_when_nothing_eligible(db_session
         simulate_candidates(db_session, incident["id"], llm_provider=ScriptedSimProvider(_sim_json()))
     )
     assert results == []
+
+
+# ------------------------------------------------------------------
+# Prompt construction: KRW currency instruction + snapshot currency
+# fields (bug fix -- LLM was producing absurdly small expected_loss/p90/
+# cvar values like 14,200원 because the prompt never said what currency
+# unit to use nor that the snapshot already carries unit_value_krw /
+# finished_unit_value_krw fields to compute from). No LLM call and no DB
+# access happen in these tests -- `_build_simulation_prompt` is a pure
+# string-building function, so it's exercised directly against fake
+# candidate/snapshot objects (SimpleNamespace) rather than the DB-seeded
+# fixtures, so these tests don't depend on whether the already-initialized
+# dev DB volume has been reseeded with the new fields yet.
+# ------------------------------------------------------------------
+
+
+def _fake_candidate() -> SimpleNamespace:
+    return SimpleNamespace(
+        candidate_type="단일",
+        description="테스트 대응안",
+        start_time_variant="즉시",
+        validation_status="가능",
+        preconditions=[],
+    )
+
+
+def _fake_snapshot(operational_state: dict) -> SimpleNamespace:
+    return SimpleNamespace(
+        data_version="v1",
+        scenario_version="scenario-test-v1",
+        operational_state=operational_state,
+    )
+
+
+_SNAPSHOT_WITH_CURRENCY_FIELDS = {
+    "inventory": {"PT-CHIP-01": {"qty": 600, "unit": "ea", "hourly_consumption": 10, "safety_stock": 300, "unit_value_krw": 15000}},
+    "production": {"PO-2026-3001": {"line": "L3", "status": "정상가동", "capacity_per_hour": 8, "finished_unit_value_krw": 42000000}},
+}
+
+
+def test_prompt_includes_krw_currency_instruction():
+    prompt = _build_simulation_prompt(_fake_candidate(), _fake_snapshot(_SNAPSHOT_WITH_CURRENCY_FIELDS), "노드:\n엣지:\n", [])
+
+    assert "KRW" in prompt
+    assert "원" in prompt
+    # Must actually instruct against the observed failure mode: a tiny
+    # number like 14,200 that only makes sense if it were e.g. 만원 units.
+    assert "정수" in prompt
+
+
+def test_prompt_includes_new_currency_field_keys_from_snapshot():
+    """Regression test: the seed data's new money fields must be named
+    exactly `unit_value_krw` / `finished_unit_value_krw` -- a typo in the
+    seed SQL would silently break the "compute from these fields" instruction
+    since the field just wouldn't show up under that name in the prompt."""
+    prompt = _build_simulation_prompt(_fake_candidate(), _fake_snapshot(_SNAPSHOT_WITH_CURRENCY_FIELDS), "노드:\n엣지:\n", [])
+
+    assert "unit_value_krw" in prompt
+    assert "finished_unit_value_krw" in prompt
+    # The instruction text referencing them, and the actual snapshot JSON
+    # dump containing them, must both be present -- not just one or the
+    # other.
+    assert prompt.count("unit_value_krw") >= 2
+    assert prompt.count("finished_unit_value_krw") >= 2
+
+
+def test_prompt_still_includes_krw_instruction_when_snapshot_lacks_currency_fields():
+    """Edge case: freeform (non-seed) incidents build operational_state via
+    app/services/operational_graph.py, which does not populate
+    unit_value_krw/finished_unit_value_krw. The prompt builder must not
+    crash and must still emit the KRW-unit instruction even when the
+    snapshot itself doesn't (yet) carry the new currency fields."""
+    bare_state = {
+        "inventory": {"PT-X": {"qty": 100, "unit": "ea", "hourly_consumption": 5, "safety_stock": 20}},
+        "production": {"PO-X": {"line": "L9", "status": "정상가동", "capacity_per_hour": 3}},
+    }
+
+    prompt = _build_simulation_prompt(_fake_candidate(), _fake_snapshot(bare_state), "노드:\n엣지:\n", [])
+
+    assert "KRW" in prompt
+    assert "원" in prompt
+    # The instruction referencing the field names is always present
+    # regardless of whether this particular snapshot happens to carry them.
+    assert "unit_value_krw" in prompt
