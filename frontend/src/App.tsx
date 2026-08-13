@@ -1,14 +1,22 @@
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { IncidentListPage } from "./pages/IncidentListPage";
 import { IncidentDashboard } from "./features/incident-dashboard/IncidentDashboard";
 import { strikeScenarioMock } from "./features/incident-dashboard/mockData";
 
 /**
- * 앱 진입점.
- * 현재는 "파업" 시드 시나리오 목업으로 인시던트 대시보드를 바로 렌더링한다.
- * 라우팅(React Router)·실제 API 연동(TanStack Query)은 백엔드 계약 확정 후 연결한다
- * (FRONTEND_ARCHITECTURE.md §3, §4).
+ * 라우팅 골격 (frontend/docs/FEATURE_PHASES.md Phase 1).
+ * `/incidents/:id`는 아직 Phase 2(Impact DAG 실연동)가 끝나기 전까지 목업 데이터를 그대로 쓴다 —
+ * 사건 목록에서 어떤 사건을 클릭해도 지금은 같은 "파업" 시나리오 목업이 보인다는 뜻이다.
  */
 function App() {
-  return <IncidentDashboard data={strikeScenarioMock} />;
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<IncidentListPage />} />
+        <Route path="/incidents/:id" element={<IncidentDashboard data={strikeScenarioMock} />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
 
 export default App;
