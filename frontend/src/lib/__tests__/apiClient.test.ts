@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, apiGet, apiPost } from "../apiClient";
+import { ApiError, apiGet, apiPatch, apiPost } from "../apiClient";
 
 describe("apiGet", () => {
   afterEach(() => {
@@ -60,5 +60,38 @@ describe("apiPost", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     await expect(apiPost("/incidents/1/simulate")).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe("apiPatch", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("PATCH 요청을 body와 함께 보내고 응답 JSON을 반환한다", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: "수신" }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const result = await apiPatch<{ status: string }>("/sop/1/status", { status: "수신", actor: "김담당" });
+    expect(result).toEqual({ status: "수신" });
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8000/sop/1/status",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "수신", actor: "김담당" }) }),
+    );
+  });
+
+  it("응답이 실패(4xx/5xx)이면 ApiError를 던진다", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await expect(apiPatch("/sop/1/status", { status: "수신", actor: "김담당" })).rejects.toBeInstanceOf(ApiError);
   });
 });

@@ -19,6 +19,8 @@ import type { ApprovalAction } from "../features/incident-dashboard/types";
 import { useIncidentStream } from "../features/stream/useIncidentStream";
 import { dispatchSop, getSopStatus } from "../features/sop-dispatch/api";
 import type { SopStatusItemApi } from "../features/sop-dispatch/types";
+import { getTimeline, updateSopStatus } from "../features/execution-tracking/api";
+import type { SopTransitionStatus, TimelineEventApi } from "../features/execution-tracking/types";
 
 /** dispatch-sop을 트리거하는 결정 타입 — communication.py의 APPROVAL_DECISION_TYPES_ELIGIBLE_FOR_DISPATCH
  * ('승인'/'조건부승인')와 일치. 반려/수정요청은 incident.status가 '승인'으로 안 바뀌므로 호출해도
@@ -38,6 +40,7 @@ type LoadState =
       candidatesApi: CandidateApi[];
       decisionPackage: DecisionPackageApi;
       sopStatuses: SopStatusItemApi[];
+      timelineEvents: TimelineEventApi[];
     };
 
 /**
@@ -64,6 +67,8 @@ export function IncidentDetailPage() {
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
   const [approvalError, setApprovalError] = useState<string | undefined>(undefined);
   const [deadlineOverrunNotice, setDeadlineOverrunNotice] = useState(false);
+  const [isUpdatingSopStatus, setIsUpdatingSopStatus] = useState(false);
+  const [sopStatusUpdateError, setSopStatusUpdateError] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
@@ -75,8 +80,9 @@ export function IncidentDetailPage() {
       listCandidates(incidentId),
       getDecisionPackage(incidentId),
       getSopStatus(incidentId),
+      getTimeline(incidentId),
     ])
-      .then(([incidents, dag, snapshot, candidatesResponse, decisionPackage, sopStatusResponse]) => {
+      .then(([incidents, dag, snapshot, candidatesResponse, decisionPackage, sopStatusResponse, timelineResponse]) => {
         if (cancelled) return;
 
         const incident = incidents.find((item) => item.id === incidentId);
@@ -94,6 +100,7 @@ export function IncidentDetailPage() {
           candidatesApi: candidatesResponse.candidates,
           decisionPackage,
           sopStatuses: sopStatusResponse.sop_statuses,
+          timelineEvents: timelineResponse.events,
         });
       })
       .catch((error: unknown) => {
@@ -167,6 +174,54 @@ export function IncidentDetailPage() {
         setApprovalError(error instanceof Error ? error.message : "알 수 없는 오류");
       } finally {
         setIsSubmittingApproval(false);
+      }
+    },
+    [incidentId],
+  );
+
+  const handleSopStatusUpdate = useCallback(
+    async (sopId: number, status: SopTransitionStatus, actor: string) => {
+      setIsUpdatingSopStatus(true);
+      setSopStatusUpdateError(undefined);
+      try {
+        const transition = await updateSopStatus(sopId, { status, actor });
+
+        const [sopStatusResponse, timelineResponse] = await Promise.all([
+          getSopStatus(incidentId),
+          getTimeline(incidentId),
+        ]);
+        setState((prev) =>
+          prev.status === "success"
+            ? { ...prev, sopStatuses: sopStatusResponse.sop_statuses, timelineEvents: timelineResponse.events }
+            : prev,
+        );
+
+        // 편차가 감지되면 서버가 오케스트레이션을 거쳐 DAG/후보/의사결정 패키지를 재계산할 수 있다
+        // (execution_tracking.py check_and_handle_deviation) — 전체 화면을 최신 상태로 맞춘다.
+        if (transition.deviation_check) {
+          const [dag, snapshot, { candidates }, decisionPackage] = await Promise.all([
+            getImpactDag(incidentId),
+            getLatestSnapshot(incidentId),
+            listCandidates(incidentId),
+            getDecisionPackage(incidentId),
+          ]);
+          setState((prev) =>
+            prev.status === "success"
+              ? {
+                  ...prev,
+                  dagColumns: layoutDagIntoColumns(dag.nodes, dag.edges),
+                  snapshot: summarizeSnapshot(snapshot),
+                  progressBadge: `${dag.quality_mode} ㆍ ${dag.scenario_version}`,
+                  candidatesApi: candidates,
+                  decisionPackage,
+                }
+              : prev,
+          );
+        }
+      } catch (error: unknown) {
+        setSopStatusUpdateError(error instanceof Error ? error.message : "알 수 없는 오류");
+      } finally {
+        setIsUpdatingSopStatus(false);
       }
     },
     [incidentId],
@@ -248,6 +303,10 @@ export function IncidentDetailPage() {
       onApprovalSubmit={handleApprovalSubmit}
       deadlineOverrunNotice={deadlineOverrunNotice}
       sopStatuses={state.sopStatuses}
+      isUpdatingSopStatus={isUpdatingSopStatus}
+      sopStatusUpdateError={sopStatusUpdateError}
+      onSopStatusUpdate={handleSopStatusUpdate}
+      timelineEvents={state.timelineEvents}
     />
   );
 }

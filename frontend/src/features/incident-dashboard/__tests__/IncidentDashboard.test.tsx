@@ -188,6 +188,18 @@ describe("IncidentDashboard — SOP 발송 상태 패널", () => {
   });
 });
 
+describe("IncidentDashboard — 실행 추적 타임라인", () => {
+  it("timelineEvents prop이 있으면 타임라인 섹션을 렌더링한다", () => {
+    render(<IncidentDashboard data={strikeScenarioMock} timelineEvents={[]} />);
+    expect(screen.getByText("실행 추적 타임라인")).toBeInTheDocument();
+  });
+
+  it("timelineEvents prop이 없으면 타임라인 섹션을 렌더링하지 않는다", () => {
+    render(<IncidentDashboard data={strikeScenarioMock} />);
+    expect(screen.queryByText("실행 추적 타임라인")).not.toBeInTheDocument();
+  });
+});
+
 describe("IncidentDashboard — 테마 토글", () => {
   it("기본은 다크 테마이고, 우상단 토글 버튼을 클릭하면 라이트로 바뀐다", async () => {
     const user = userEvent.setup();
