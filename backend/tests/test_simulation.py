@@ -28,6 +28,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
 
+from app.llm import GeminiAPIError
 from app.main import app
 from app.repositories.response_candidates import ResponseCandidateRepository
 from app.repositories.simulation_results import SimulationResultRepository
@@ -233,6 +234,58 @@ def test_schema_violation_missing_fact_retries_then_raises(db_session):
     # No row was persisted for the failed candidate.
     sim_repo = SimulationResultRepository(db_session)
     assert sim_repo.for_incident(incident["id"]) == []
+
+
+# ------------------------------------------------------------------
+# Extra: provider-level failures (quota exhausted, network error, etc.)
+# must surface as SimulationValidationError, not leak as a raw
+# GeminiAPIError/500 -- found during pre-merge review when testing against
+# a real (but quota-exhausted) GEMINI_API_KEY.
+# ------------------------------------------------------------------
+
+
+class RaisingSimProvider:
+    """Fake LLMProvider whose generate() always raises, simulating a real
+    provider-level failure (e.g. 429 RESOURCE_EXHAUSTED)."""
+
+    def __init__(self, exc: Exception):
+        self._exc = exc
+        self.call_count = 0
+
+    def generate(self, prompt: str, *, system=None, temperature: float = 0.7) -> str:
+        self.call_count += 1
+        raise self._exc
+
+
+def test_provider_error_during_simulation_call_retries_then_raises(db_session):
+    incident = _setup_validated_incident(db_session, "항만 적체", "시뮬레이션프로바이더실패")
+    provider = RaisingSimProvider(GeminiAPIError("429 RESOURCE_EXHAUSTED"))
+
+    with pytest.raises(SimulationValidationError):
+        asyncio.run(simulate_candidates(db_session, incident["id"], llm_provider=provider))
+
+    assert provider.call_count >= 2  # same retry-once-then-raise contract as parse failures
+
+    sim_repo = SimulationResultRepository(db_session)
+    assert sim_repo.for_incident(incident["id"]) == []
+
+
+def test_provider_error_during_rag_embedding_is_wrapped_as_simulation_validation_error(
+    db_session, monkeypatch
+):
+    incident = _setup_validated_incident(db_session, "항만 적체", "시뮬레이션임베딩실패")
+
+    def _raise(_text):
+        raise GeminiAPIError("429 RESOURCE_EXHAUSTED")
+
+    monkeypatch.setattr("app.rag.search.embed_text", _raise)
+    provider = ScriptedSimProvider(["should never be reached"])
+
+    with pytest.raises(SimulationValidationError):
+        asyncio.run(simulate_candidates(db_session, incident["id"], llm_provider=provider))
+
+    # The LLM was never even called -- the RAG/embedding failure happens first.
+    assert provider.call_count == 0
 
 
 def test_free_text_only_response_is_rejected(db_session):

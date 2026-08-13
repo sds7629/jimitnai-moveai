@@ -37,7 +37,7 @@ from typing import Any
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from sqlalchemy.orm import Session
 
-from app.llm import LLMProvider, get_llm_provider
+from app.llm import ClaudeCLIError, GeminiAPIError, LLMProvider, get_llm_provider
 from app.llm.json_utils import extract_json
 from app.models.operational_snapshot import OperationalSnapshot
 from app.models.response_candidate import ResponseCandidate
@@ -185,14 +185,18 @@ async def _generate_and_parse_with_retry(
 ) -> SimulationLLMResult:
     last_error: Exception | None = None
     for _attempt in range(2):  # initial try + 1 retry, per agents/simulation.md DoD
-        raw = await asyncio.to_thread(provider.generate, prompt)
         try:
+            raw = await asyncio.to_thread(provider.generate, prompt)
             return _parse_llm_result(raw)
-        except (json.JSONDecodeError, ValidationError, ValueError) as exc:
+        except (json.JSONDecodeError, ValidationError, ValueError, GeminiAPIError, ClaudeCLIError) as exc:
+            # GeminiAPIError/ClaudeCLIError(병합 전 리뷰, 실키 테스트에서 발견:
+            # 할당량 초과 등 프로바이더 호출 자체의 실패가 이전엔 잡히지 않고
+            # asyncio.gather를 뚫고 나가 처리 안 된 500이 됐다)도 스키마 위반과
+            # 동일하게 "이번 시도 실패, 한 번 더" 취급한다.
             last_error = exc
             continue
     raise SimulationValidationError(
-        f"후보 '{candidate_label}' 시뮬레이션 응답이 스키마를 위반했습니다"
+        f"후보 '{candidate_label}' 시뮬레이션 응답 생성에 실패했습니다"
         f"(1회 재시도 후에도 실패): {last_error}"
     )
 
@@ -229,9 +233,15 @@ async def simulate_candidates(
         if snapshot is None:
             continue
         dag_summary = _dag_path_summary(db, candidate.snapshot_id)
-        rag_results = search_similar_chunks(
-            db, _query_text_for_candidate(candidate), doc_types=RAG_DOC_TYPES, top_k=RAG_TOP_K
-        )
+        try:
+            rag_results = search_similar_chunks(
+                db, _query_text_for_candidate(candidate), doc_types=RAG_DOC_TYPES, top_k=RAG_TOP_K
+            )
+        except (GeminiAPIError, ClaudeCLIError) as exc:
+            raise SimulationValidationError(
+                f"후보 '{candidate.candidate_type}#{candidate.id}' 시뮬레이션 프롬프트 구성을 위한 "
+                f"RAG 검색(임베딩) 호출 실패: {exc}"
+            ) from exc
         prompt = _build_simulation_prompt(candidate, snapshot, dag_summary, rag_results)
         prepared.append((candidate, snapshot, prompt))
 
