@@ -1,8 +1,8 @@
 # DAG 화면 디자인 인풋 정리 (스켈레톤 작성용)
 
 Claude 디자인으로 스켈레톤을 만들기 전, 확인된 화면 구성 요소와 기존 명세
-(`simulation-supply-chain-tool.md`, `ARCHITECTURE.md`, `frontend/FRONTEND_ARCHITECTURE.md`,
-`frontend/DAG_VISUALIZATION.md`)를 대조해서 **디자인에서 빠지면 안 되는 인풋/아웃풋**을 정리한다.
+(`simulation-supply-chain-tool.md`, `ARCHITECTURE.md`, `frontend/docs/FRONTEND_ARCHITECTURE.md`,
+`frontend/docs/DAG_VISUALIZATION.md`)를 대조해서 **디자인에서 빠지면 안 되는 인풋/아웃풋**을 정리한다.
 
 ## 0. 먼저 확인해야 하는 구조적 차이
 
@@ -40,7 +40,7 @@ Claude 디자인으로 스켈레톤을 만들기 전, 확인된 화면 구성 �
 
 ## 3. Impact DAG 캔버스 (좌측 메인 영역)
 
-`frontend/DAG_VISUALIZATION.md`에서 이미 스키마 초안을 잡아뒀지만, 확인된 구성을 보면 **엔티티 타입
+`frontend/docs/DAG_VISUALIZATION.md`에서 이미 스키마 초안을 잡아뒀지만, 확인된 구성을 보면 **엔티티 타입
 분류가 기존 초안과 다르다** — 반영 필요.
 
 - 기존 초안(`DAG_VISUALIZATION.md`): `nodeType: "trigger" | "impact" | "outcome"` (시각 스타일용 3분류)
@@ -157,7 +157,7 @@ type MatchedSop = {
 - DAG/후보/SOP 각각의 로딩 스켈레톤
 - `POST /simulate` 재실행 중 로딩 상태 ("다시 실행" 버튼 자체의 로딩 표시)
 - SSE `dag_updated` 등으로 갱신될 때의 강조 표시 (새 노드/변경된 수치를 어떻게 시각적으로 알릴지) —
-  `frontend/DAG_VISUALIZATION.md` §2.5 참고
+  `frontend/docs/DAG_VISUALIZATION.md` §2.5 참고
 - 매칭 SOP 0건일 때, 대응안 후보 0건일 때의 빈 상태
 - "AI: 캐시 폴백" 외의 다른 AI 상태(정상/오류)일 때의 표시 차이
 
@@ -166,6 +166,6 @@ type MatchedSop = {
 1. §0의 화면 구조 결정(단일 대시보드 vs 탭) — 백엔드/기획 세션과 확정
 2. §3의 "진입 N5ㆍ2일", §2의 "GVIS", §4의 랭킹 계산 의미(개별 vs 누적) — 뜻이 불명확한 3가지 용어를
    확인해서 정확한 필드명으로 치환
-3. 위 스키마 초안(§3~§6)을 `frontend/DAG_VISUALIZATION.md`의 기존 `ImpactDagNode` 스키마와 합쳐서
+3. 위 스키마 초안(§3~§6)을 `frontend/docs/DAG_VISUALIZATION.md`의 기존 `ImpactDagNode` 스키마와 합쳐서
    하나로 정리
 4. 확정된 이 문서를 Claude 디자인 인풋으로 전달해 스켈레톤 생성
