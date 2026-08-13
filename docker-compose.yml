@@ -43,6 +43,29 @@ services:
       retries: 10
       start_period: 10s
 
+  frontend:
+    build: ./frontend
+    environment:
+      # 브라우저(호스트)가 직접 호출하는 주소라 backend:8000이 아니라 localhost:8000이어야 한다 —
+      # 컨테이너 내부 네트워크 이름은 프론트 컨테이너 자신이 아니라 브라우저 기준으로는 무의미하다.
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    volumes:
+      # Bind-mount source for live HMR during development.
+      - ./frontend:/app
+      # 컨테이너 내부에 npm install된 node_modules를 호스트 볼륨 마운트가 가리지 않도록 분리
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5173').then(()=>process.exit(0)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   adminer:
     image: adminer
     ports:
@@ -53,3 +76,4 @@ services:
 
 volumes:
   db_data:
+  frontend_node_modules:
