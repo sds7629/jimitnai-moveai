@@ -145,3 +145,38 @@ export interface FeasibilityAndExclusionEntry {
 export type FeasibilityAndExclusionSection = Record<string, FeasibilityAndExclusionEntry>;
 
 export type KeySensitivityVariablesSection = Record<string, unknown[]>;
+
+/**
+ * Phase 18 전용 타입 — package["ranked_candidates"]의 실제 형태
+ * (backend/app/services/response_optimization.py rank_candidates + build_decision_package
+ * 확인). composite_score는 risk_score(기대손실/P90/CVaR 가중합)에 feasibility_penalty를 곱한
+ * 값으로, 대응안 후보 랭킹 패널(features/candidates)의 절감액 기준 정렬과는 다른 알고리즘이다.
+ */
+export interface RankedCandidateApi {
+  candidate_id: number;
+  candidate_type: string;
+  description: string;
+  start_time_variant: string | null;
+  validation_status: ValidationStatus;
+  preconditions: string[];
+  expected_loss: number | null;
+  p90: number | null;
+  cvar: number | null;
+  risk_score: number;
+  feasibility_penalty: number;
+  composite_score: number;
+  rank: number;
+}
+export interface ExcludedFromRankingApi {
+  candidate_id: number;
+  candidate_type: string;
+  description: string;
+  validation_status: ValidationStatus;
+  exclusion_category: ExclusionCategory | null;
+  exclusion_detail: string | null;
+  reason: string;
+}
+export interface RankedCandidatesSection {
+  ranked: RankedCandidateApi[];
+  excluded_from_ranking: ExcludedFromRankingApi[];
+}

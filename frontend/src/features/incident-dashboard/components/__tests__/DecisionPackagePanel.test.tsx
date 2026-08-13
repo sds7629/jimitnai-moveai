@@ -44,7 +44,26 @@ const samplePackage: DecisionPackageApi = {
       },
     },
     confidence_and_uncertainty: {},
-    ranked_candidates: { ranked: [], excluded_from_ranking: [] },
+    ranked_candidates: {
+      ranked: [
+        {
+          candidate_id: 1,
+          candidate_type: "baseline",
+          description: "기준 시나리오",
+          start_time_variant: null,
+          validation_status: "가능",
+          preconditions: [],
+          expected_loss: 200000000,
+          p90: 250000000,
+          cvar: 300000000,
+          risk_score: 235000000,
+          feasibility_penalty: 0,
+          composite_score: 235000000,
+          rank: 1,
+        },
+      ],
+      excluded_from_ranking: [],
+    },
     disclaimer: "이 패키지는 대응안의 순위와 근거를 제공할 뿐, 특정 대응안을 정답으로 단정하지 않습니다.",
   },
 };
@@ -70,7 +89,8 @@ describe("DecisionPackagePanel — 정상 시나리오(happy path)", () => {
     render(<DecisionPackagePanel decisionPackage={samplePackage} now={new Date("2026-08-13T00:00:00Z")} />);
 
     // 표의 후보명 셀로 렌더링되어야 하고, 더 이상 별도의 "기대손실·P90·CVaR" 단독 라벨(구 버전)은 없다
-    expect(screen.getByText("baseline")).toBeInTheDocument();
+    // ranked_candidates 순위 리스트에도 같은 후보명이 나오므로 getAllByText로 확인한다
+    expect(screen.getAllByText("baseline").length).toBeGreaterThan(0);
     expect(screen.queryByText("기대손실·P90·CVaR")).not.toBeInTheDocument();
   });
 
@@ -97,6 +117,14 @@ describe("DecisionPackagePanel — 정상 시나리오(happy path)", () => {
     expect(screen.getByText("창고 여유 확보")).toBeInTheDocument();
     expect(screen.getByText("항만 재개방 시점")).toBeInTheDocument();
     expect(screen.queryByText("핵심 민감도 변수")).not.toBeInTheDocument();
+  });
+
+  it("ranked_candidates 섹션은 JSON이 아니라 순위 리스트로 렌더링하고, 10개 섹션이 전부 실제 UI다", () => {
+    render(<DecisionPackagePanel decisionPackage={samplePackage} now={new Date("2026-08-13T00:00:00Z")} />);
+    expect(screen.getByText("대응 조합 순위")).toBeInTheDocument();
+    expect(screen.getByText(/composite score/)).toBeInTheDocument();
+    // Phase 13~18로 10개 섹션이 전부 전용 UI로 옮겨졌으니, 남은 JSON 블록(JSON.stringify pre 태그)이 없어야 한다
+    expect(document.querySelectorAll("pre")).toHaveLength(0);
   });
 });
 

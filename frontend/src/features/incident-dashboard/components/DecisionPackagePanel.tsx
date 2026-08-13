@@ -9,6 +9,7 @@ import type {
   FreshnessAndCoverageSection,
   KeySensitivityVariablesSection,
   NowVs6hVsNoActionSection,
+  RankedCandidatesSection,
 } from "../../decision-package/types";
 import { summarizeDeadline } from "../../decision-package/format";
 import { buildExpectedLossTable } from "../../decision-package/expectedLossTable";
@@ -18,6 +19,7 @@ import { NowVs6hComparison } from "./NowVs6hComparison";
 import { CausalPathList } from "./CausalPathList";
 import { EvidencePanel } from "./EvidencePanel";
 import { FeasibilityTable } from "./FeasibilityTable";
+import { RankedCandidatesList } from "./RankedCandidatesList";
 
 interface DecisionPackagePanelProps {
   decisionPackage: DecisionPackageApi;
@@ -36,7 +38,10 @@ const MIGRATED_SECTION_KEYS = new Set([
   "freshness_and_coverage",
   "feasibility_and_exclusion",
   "key_sensitivity_variables",
+  "ranked_candidates",
 ]);
+
+const EMPTY_RANKED_CANDIDATES: RankedCandidatesSection = { ranked: [], excluded_from_ranking: [] };
 
 const EMPTY_NOW_VS_6H: NowVs6hVsNoActionSection = { no_action: null, now: null, plus_6h: null };
 const EMPTY_CAUSAL_PATH: CausalPathSection = { nodes: [], edges: [] };
@@ -57,9 +62,10 @@ const EMPTY_FRESHNESS_AND_COVERAGE: FreshnessAndCoverageSection = {
  *
  * simulation-supply-chain-tool.md §5.1의 10개 항목이 백엔드에 이미 전부 구현돼 있어서
  * (backend/app/services/response_optimization.py), 처음에는(Phase 6) 전부 "라벨 + JSON"으로
- * 일반화해서 배선만 했다. Phase 13부터 같은 표현 방식을 쓰는 섹션 묶음을 하나씩 전용 UI로
- * 바꾸는 중이다(frontend/docs/FEATURE_PHASES.md Phase 13~18) — 아직 안 바뀐 섹션은 여전히
- * JSON 그대로 보여준다.
+ * 일반화해서 배선만 했다. Phase 13~18에서 같은 표현 방식을 쓰는 섹션 묶음을 하나씩 전용 UI로
+ * 바꿔서(frontend/docs/FEATURE_PHASES.md Phase 13~18) 10개 항목 전부 표/카드/리스트로
+ * 렌더링된다 — 아래 일반 JSON 렌더링 루프는 백엔드가 새 섹션 키를 추가했을 때 배선이 안 된
+ * 채로 조용히 누락되지 않도록 남겨둔 방어용 fallback이다.
  */
 export function DecisionPackagePanel({ decisionPackage, now = new Date() }: DecisionPackagePanelProps) {
   const deadline = summarizeDeadline(decisionPackage.recommended_deadline, now);
@@ -99,6 +105,12 @@ export function DecisionPackagePanel({ decisionPackage, now = new Date() }: Deci
     (decisionPackage.package.feasibility_and_exclusion ?? {}) as FeasibilityAndExclusionSection,
     (decisionPackage.package.key_sensitivity_variables ?? {}) as KeySensitivityVariablesSection,
   );
+  // ranked_candidates도 같은 이유로 ranked/excluded_from_ranking 필드별 기본값 처리한다.
+  const rawRankedCandidates = (decisionPackage.package.ranked_candidates ?? {}) as Partial<RankedCandidatesSection>;
+  const rankedCandidates: RankedCandidatesSection = {
+    ranked: rawRankedCandidates.ranked ?? EMPTY_RANKED_CANDIDATES.ranked,
+    excluded_from_ranking: rawRankedCandidates.excluded_from_ranking ?? EMPTY_RANKED_CANDIDATES.excluded_from_ranking,
+  };
 
   return (
     <div className="rounded-[10px] border border-[var(--border)] bg-[var(--panel-bg)] p-4.5">
@@ -147,6 +159,11 @@ export function DecisionPackagePanel({ decisionPackage, now = new Date() }: Deci
       <div className="border-b border-[var(--border)] py-2.5">
         <div className="mb-1 text-[11.5px] font-bold text-[var(--text-secondary-strong)]">실행 가능성·제외 사유</div>
         <FeasibilityTable rows={feasibilityRows} />
+      </div>
+
+      <div className="border-b border-[var(--border)] py-2.5 last:border-b-0">
+        <div className="mb-1 text-[11.5px] font-bold text-[var(--text-secondary-strong)]">대응 조합 순위</div>
+        <RankedCandidatesList section={rankedCandidates} />
       </div>
 
       {DECISION_PACKAGE_SECTIONS.filter(({ key }) => !MIGRATED_SECTION_KEYS.has(key)).map(({ key, label }) => (
