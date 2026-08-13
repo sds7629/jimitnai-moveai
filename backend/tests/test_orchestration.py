@@ -170,17 +170,17 @@ def test_reject_keeps_incident_in_progress_and_records_reason(db_session):
     assert approvals[-1].decision_type == "반려"
     assert approvals[-1].reason == "예산 초과로 반려"
 
-    # 반려 이후 incidents.status='처리중'이므로, operational-graph 웨이브가 이미
-    # 소유한 적격성 게이트(ensure_snapshot_and_dag -- status='유효'만 스냅샷/
-    # 파이프라인 대상)에 걸려 POST /simulate 재호출은 지금 409가 된다. 이것은
-    # orchestration이 새로 추가한 제약이 아니라 다른 웨이브의 기존 설계이고,
-    # app/services/orchestration.py의 _reject 문서화에 이 한계를 그대로 남겨
-    # 뒀다 -- "인터페이스만 열어둔다"는 이번 스코프의 범위가 실제로 여기까지임을
-    # 이 테스트로 명시한다(엔드포인트가 여전히 존재하고 정상적으로 에러 사유를
-    # 반환한다는 것만 확인).
+    # 반려 이후 incidents.status='처리중'이다. 이전 리뷰에서는 operational-graph의
+    # 적격성 게이트가 '유효'만 허용해 POST /simulate 재호출이 409였지만, Wave 7
+    # (execution-tracking) 병합 전 리뷰에서 그 게이트를 '유효'/'처리중'/'승인'
+    # 모두 허용하도록 넓혔다(app/services/operational_graph.py의
+    # RECOMPUTE_ELIGIBLE_STATUSES) -- '처리중'/'승인'은 원래 '유효'를 거쳐야만
+    # 도달하는 상태라 재계산 대상에서 뺄 이유가 없었기 때문이다. 이제 담당자가
+    # 반려 후 다시 검토를 요청하면(재호출) 기존 후보를 재사용해 정상적으로
+    # 재검증·재시뮬레이션이 돈다.
     resimulate = client.post(f"/incidents/{incident['id']}/simulate")
-    assert resimulate.status_code == 409
-    assert "유효" in resimulate.text
+    assert resimulate.status_code == 200, resimulate.text
+    assert resimulate.json()["reused_existing_candidates"] is True
 
 
 # ------------------------------------------------------------------

@@ -58,7 +58,7 @@ from app.repositories.decision_packages import DecisionPackageRepository
 from app.repositories.incidents import IncidentRepository
 from app.repositories.operational_snapshots import OperationalSnapshotRepository
 from app.services.constraint_validation import validate_candidates
-from app.services.operational_graph import ELIGIBLE_STATUS, IncidentNotFoundError, ensure_snapshot_and_dag  # noqa: F401 -- IncidentNotFoundError re-exported for API layer convenience
+from app.services.operational_graph import IncidentNotFoundError, ensure_snapshot_and_dag  # noqa: F401 -- IncidentNotFoundError re-exported for API layer convenience
 from app.services.simulation import SimulationValidationError, simulate_candidates
 
 __all__ = [
@@ -481,21 +481,18 @@ async def handle_execution_deviation(
          승인/반려 결정이 아니라 시스템이 관찰한 사실이다. 대신 audit_log에
          event_type='deviation_triggered_reevaluation'으로 사유를 기록한다.
 
-    판단 근거(스코프 결정, 코드 주석으로 남김) -- operational_graph의
-    "유효" 게이트와의 충돌: ensure_snapshot_and_dag은 incident.status==
-    ELIGIBLE_STATUS('유효')일 때만 재계산을 허용한다(중복/오탐 사건을
-    스냅샷 대상에서 빼기 위한 게이트, agents/operational-graph.md). 이 게이트는
-    incident-intake 직후의 최초 스냅샷 생성 시점을 염두에 두고 설계된 것이라,
-    "SOP가 이미 발송된 뒤 실행 편차로 재계산한다"는 이 함수의 시나리오(호출
-    시점의 status는 거의 항상 '승인' 또는 이전 편차로 되돌려진 '처리중')는
-    그 설계 당시 고려 대상이 아니었다. operational-graph 웨이브가 소유한
-    파일의 게이트 상수를 이 웨이브에서 직접 고치는 것은 책임 경계를 넘는
-    일이므로, 대신 오케스트레이션이 이미 소유하고 있는 incidents.status 전이
-    권한을 이용해 재계산 직전에만 잠깐 '유효'로 되돌렸다가 재계산 직후 3번의
-    올바른 최종 상태로 다시 전이시킨다. 이 중간 상태는 같은 함수 호출(같은 DB
-    세션) 안에서만 존재하고 이 함수가 끝나기 전에 바로 정리되므로, 그 사이
-    다른 요청이 이 incident를 관찰할 여지가 없는 FastAPI의 요청당 세션 모델
-    에서는 안전하다.
+    병합 전 리뷰에서 발견/수정된 점: 이전 구현은 operational_graph의 게이트가
+    '유효'만 허용한다는 이유로 재계산 직전에 status를 잠깐 '유효'로 돌렸다가
+    직후 되돌리는 우회를 썼다. 이 방식은 각 상태 전이가 즉시 커밋되는
+    리포지토리 구조(app/repositories/base.py)와 결합해 실제 문제를 만든다 --
+    `await simulate_candidates(...)`로 이벤트 루프가 다른 요청에 양보하는 동안
+    이 incident는 실제 DB에 커밋된 '유효' 상태로(원래는 '승인'/'처리중'인데도)
+    잠시 노출되어, 동시에 들어온 다른 요청이 이 사건을 "아직 승인 전"으로
+    잘못 관찰할 수 있었다. 그래서 이번 리뷰에서 대신 operational_graph.py의
+    게이트 자체를 넓혔다(`RECOMPUTE_ELIGIBLE_STATUSES = ('유효','처리중','승인')`)
+    -- '처리중'/'승인'은 애초에 '유효'를 한 번 거쳐야만 도달 가능한 후속
+    상태이므로 재계산 대상에서 뺄 이유가 없었다. 이 함수는 이제 상태를 건드리지
+    않고 곧바로 재계산을 호출한다(중간 상태 자체가 없어짐).
 
     Raises IncidentNotFoundError (호출부가 404로 변환), SimulationValidationError
     / LLMConfigError(재시뮬레이션 실패, 502/503) -- 그대로 위로 전파한다."""
@@ -506,9 +503,6 @@ async def handle_execution_deviation(
         raise IncidentNotFoundError(f"incident {incident_id} not found")
 
     previous_status = incident.status
-
-    if previous_status != ELIGIBLE_STATUS:
-        incident_repo.update(incident_id, status=ELIGIBLE_STATUS)
 
     ensure_snapshot_and_dag(db, incident_id, force_recompute=True)
     validate_candidates(db, incident_id)

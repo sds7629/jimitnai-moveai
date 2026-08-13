@@ -39,9 +39,24 @@ from app.repositories.incidents import IncidentRepository
 from app.repositories.operational_snapshots import OperationalSnapshotRepository
 
 # Only incidents that have passed incident-intake's duplicate/false-positive
-# gate are snapshot targets (agents/operational-graph.md: "status='유효'인
-# 사건만 스냅샷 대상으로 삼아라"). 중복/오탐 사건은 스냅샷을 만들지 않는다.
+# gate are snapshot/recompute targets (agents/operational-graph.md: "status=
+# '유효'인 사건만 스냅샷 대상으로 삼아라"). 중복/오탐(그리고 아직 분류 전인
+# 신규, 이미 닫힌 종료) 사건은 스냅샷을 만들지 않는다.
+#
+# '처리중'/'승인'도 포함하는 이유(Wave 7, execution-tracking 리뷰에서 확정):
+# 이 두 상태는 오직 한 번 '유효'를 거쳐야만 도달 가능한 후속 상태다(사건이
+# 대응 파이프라인에 실제로 올라간 뒤의 진행 상태) -- 즉 "이미 한 번 적격
+# 판정을 통과한 사건"이므로 재계산 대상에서 뺄 이유가 없다. 이 게이트를 '유효'
+# 하나로만 좁혀두면, 승인 후 실행 편차가 감지되거나(execution-tracking의
+# handle_execution_deviation) 반려/수정요청으로 '처리중'에 머문 사건에 대해
+# 재검증·재시뮬레이션을 다시 트리거할 방법이 없어진다 -- 상태를 일부러 잠깐
+# '유효'로 되돌렸다가 되돌리는 우회는 그 사이 커밋된 잘못된 상태를 다른
+# 동시 요청이 관찰할 수 있어(특히 이 함수를 호출하는 쪽이 이후 await로
+# LLM 호출을 거치는 경우) 더 위험하다. ELIGIBLE_STATUS(단일값, 최초 스냅샷
+# 생성 전제조건 문서화용으로 유지)는 그대로 두고, 실제 게이트 판정에는 이
+# 튜플을 쓴다.
 ELIGIBLE_STATUS = "유효"
+RECOMPUTE_ELIGIBLE_STATUSES = (ELIGIBLE_STATUS, "처리중", "승인")
 
 # The 3 operational-state/DAG categories the business spec treats as the
 # "필수" data for a normal-quality analysis (simulation-supply-chain-tool.md
@@ -407,10 +422,10 @@ def ensure_snapshot_and_dag(
     if incident is None:
         raise IncidentNotFoundError(f"incident {incident_id} not found")
 
-    if incident.status != ELIGIBLE_STATUS:
+    if incident.status not in RECOMPUTE_ELIGIBLE_STATUSES:
         raise IncidentNotEligibleError(
-            f"incident {incident_id} has status {incident.status!r}, not "
-            f"{ELIGIBLE_STATUS!r} — 중복/오탐 사건은 스냅샷 대상이 아님"
+            f"incident {incident_id} has status {incident.status!r}, not one of "
+            f"{RECOMPUTE_ELIGIBLE_STATUSES!r} — 중복/오탐/신규/종료 사건은 스냅샷 대상이 아님"
         )
 
     snapshot_repo = OperationalSnapshotRepository(db)
