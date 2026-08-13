@@ -27,3 +27,25 @@ def test_unknown_route_returns_404():
 def test_health_rejects_wrong_method():
     resp = client.post("/health")
     assert resp.status_code == 405
+
+
+# ------------------------------------------------------------------
+# CORS -- both default frontend origins must be allowed (a real browser CORS
+# error was traced to 127.0.0.1:5173 being blocked while localhost:5173 was
+# allowed; see app/core/config.py's Settings.frontend_origins).
+# ------------------------------------------------------------------
+
+
+def test_cors_allows_localhost_frontend_origin():
+    resp = client.get("/health", headers={"Origin": "http://localhost:5173"})
+    assert resp.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
+def test_cors_allows_127_0_0_1_frontend_origin():
+    resp = client.get("/health", headers={"Origin": "http://127.0.0.1:5173"})
+    assert resp.headers["access-control-allow-origin"] == "http://127.0.0.1:5173"
+
+
+def test_cors_rejects_unrelated_origin():
+    resp = client.get("/health", headers={"Origin": "http://evil.example.com"})
+    assert "access-control-allow-origin" not in resp.headers
