@@ -7,6 +7,8 @@
  * 화면에서 이 제약을 숨기지 않고 그대로 노출해야 한다.
  */
 import type { ExclusionCategory, ValidationStatus } from "../candidates/types";
+import type { SopStatusItemApi } from "../sop-dispatch/types";
+import type { TimelineEventApi } from "../execution-tracking/types";
 
 export interface PostReportApi {
   incident_id: number;
@@ -195,4 +197,26 @@ export interface DynamicVariableChangesSection {
   snapshot_count: number;
   versions: SnapshotVersionApi[];
   changes_summary: string[] | SnapshotChangeApi[];
+}
+
+/**
+ * Phase 22 전용 타입 — sections["6_SOP_발송_수신_수락_실행_이력"]의 실제 형태
+ * (backend/app/services/post_report.py _section_6_sop_history 확인). dispatches는
+ * sop_status_for_incident(backend/app/services/communication.py)가 만드는 SopStatusItemApi 배열이라
+ * frontend/src/features/sop-dispatch/types.ts에 이미 있는 타입을 그대로 재사용한다.
+ */
+export interface SopHistorySection {
+  sop_count: number;
+  dispatches: SopStatusItemApi[];
+}
+
+/**
+ * Phase 22 전용 타입 — sections["11_자원_확보_실패_실행_편차와_에스컬레이션_이력"]의 실제 형태
+ * (backend/app/services/post_report.py _section_11_deviation_history 확인). events는
+ * timeline_for_incident(backend/app/services/execution_tracking.py) 결과 중 is_deviation_event=true인
+ * 항목만 걸러낸 것이라, Phase 10에서 이미 만든 TimelineEventApi를 그대로 재사용한다.
+ */
+export interface DeviationHistorySection {
+  deviation_event_count: number;
+  events: TimelineEventApi[];
 }

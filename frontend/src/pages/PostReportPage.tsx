@@ -6,19 +6,22 @@ import {
   POST_REPORT_SECTIONS,
   type CandidatesReviewedSection,
   type CostAttributionApi,
+  type DeviationHistorySection,
   type DynamicVariableChangesSection,
   type ExpectedVsActualProgressSection,
   type FinalDecisionSection,
   type OverviewSection,
   type PostReportApi,
+  type SopHistorySection,
 } from "../features/post-report/types";
 import { formatKrwToEokwon } from "../lib/currency";
 import { OverviewAndDecisionCard } from "../features/post-report/components/OverviewAndDecisionCard";
 import { ReviewedCandidatesTable } from "../features/post-report/components/ReviewedCandidatesTable";
 import { ExpectedProgressAndChanges } from "../features/post-report/components/ExpectedProgressAndChanges";
+import { SopHistoryAndDeviations } from "../features/post-report/components/SopHistoryAndDeviations";
 
-/** Phase 19~21에서 전용 UI로 옮긴 섹션 — 아래 일반 JSON 렌더링 목록에서는 제외한다.
- * 앞으로 Phase 22~24가 섹션을 하나씩 옮길 때마다 이 목록에 키를 추가한다
+/** Phase 19~22에서 전용 UI로 옮긴 섹션 — 아래 일반 JSON 렌더링 목록에서는 제외한다.
+ * 앞으로 Phase 23~24가 섹션을 하나씩 옮길 때마다 이 목록에 키를 추가한다
  * (DecisionPackagePanel의 MIGRATED_SECTION_KEYS와 같은 패턴, frontend/docs/FEATURE_PHASES.md Phase 19~24). */
 const MIGRATED_SECTION_KEYS = new Set([
   "1_사건_개요와_발생시점",
@@ -26,6 +29,8 @@ const MIGRATED_SECTION_KEYS = new Set([
   "3_주요_동적_변수의_변화",
   "4_검토한_대응안과_제외_사유",
   "5_최종_결정과_승인자",
+  "6_SOP_발송_수신_수락_실행_이력",
+  "11_자원_확보_실패_실행_편차와_에스컬레이션_이력",
 ]);
 
 const EMPTY_OVERVIEW: OverviewSection = {
@@ -58,6 +63,8 @@ const EMPTY_CHANGES: DynamicVariableChangesSection = {
   versions: [],
   changes_summary: [],
 };
+const EMPTY_SOP_HISTORY: SopHistorySection = { sop_count: 0, dispatches: [] };
+const EMPTY_DEVIATION_HISTORY: DeviationHistorySection = { deviation_event_count: 0, events: [] };
 
 type LoadState =
   | { status: "loading" }
@@ -155,6 +162,17 @@ export function PostReportPage() {
     excluded_count: rawReviewed.excluded_count ?? EMPTY_CANDIDATES_REVIEWED.excluded_count,
     candidates: rawReviewed.candidates ?? EMPTY_CANDIDATES_REVIEWED.candidates,
   };
+  const rawSopHistory = (postReport.sections["6_SOP_발송_수신_수락_실행_이력"] ?? {}) as Partial<SopHistorySection>;
+  const sopHistory: SopHistorySection = {
+    sop_count: rawSopHistory.sop_count ?? EMPTY_SOP_HISTORY.sop_count,
+    dispatches: rawSopHistory.dispatches ?? EMPTY_SOP_HISTORY.dispatches,
+  };
+  const rawDeviationHistory = (postReport.sections["11_자원_확보_실패_실행_편차와_에스컬레이션_이력"] ??
+    {}) as Partial<DeviationHistorySection>;
+  const deviationHistory: DeviationHistorySection = {
+    deviation_event_count: rawDeviationHistory.deviation_event_count ?? EMPTY_DEVIATION_HISTORY.deviation_event_count,
+    events: rawDeviationHistory.events ?? EMPTY_DEVIATION_HISTORY.events,
+  };
 
   return (
     <div data-theme="dark" className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-primary)]">
@@ -202,6 +220,10 @@ export function PostReportPage() {
 
       <div className="mb-5">
         <ReviewedCandidatesTable section={candidatesReviewed} />
+      </div>
+
+      <div className="mb-5">
+        <SopHistoryAndDeviations sopHistory={sopHistory} deviationHistory={deviationHistory} />
       </div>
 
       <div className="rounded-[10px] border border-[var(--border)] bg-[var(--panel-bg)] p-4.5">
