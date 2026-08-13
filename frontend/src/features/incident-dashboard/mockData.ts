@@ -93,8 +93,13 @@ export const strikeScenarioMock: IncidentDashboardData = {
       remainingLoss: "564.6억원",
       mitigationRatio: 49,
       detail: {
-        distributionPlaceholder: "P90 / CVaR 분포 차트 (자리표시자)",
-        baselineComparisonPlaceholder: "지금 대응 ㆍ 6시간 후 대응 ㆍ 무대응 비교 (자리표시자)",
+        p90: "702.1억원",
+        cvar: "745.3억원",
+        confidencePercent: 78,
+        sensitivityVariables: ["안전재고 소진 속도", "대체 항로 확보 여부"],
+        fact: { 현재_재고: "480ea", 시간당_소비: "20ea" },
+        inference: { 소진_예상_시각: "24시간 후" },
+        assumption: { 안전재고_기준: "200ea" },
       },
     },
     {

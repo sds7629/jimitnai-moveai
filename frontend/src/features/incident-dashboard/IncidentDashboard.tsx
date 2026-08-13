@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { AiStatus, ApprovalAction, IncidentDashboardData, RankingMode } from "./types";
+import type { AiStatus, ApprovalAction, IncidentDashboardData } from "./types";
 import type { SnapshotSummary } from "../snapshot/format";
 import { Header } from "./components/Header";
 import { IncidentContextBar } from "./components/IncidentContextBar";
@@ -14,10 +14,12 @@ export interface IncidentDashboardProps {
   /** 라이트/다크 테마 초기값. 기본 다크. 헤더 우상단 토글 버튼으로 이후 전환 가능(내부 상태로 관리). */
   theme?: "dark" | "light";
   aiStatus?: AiStatus;
-  rankingMode?: RankingMode;
   showSopDemoNote?: boolean;
   /** 없으면 스냅샷 상태 바를 렌더링하지 않는다 (Phase 3 이전 호출부와의 호환) */
   snapshot?: SnapshotSummary;
+  /** POST /simulate가 진행 중일 때 "다시 실행" 버튼에 로딩 상태를 표시 (Phase 5) */
+  isRerunning?: boolean;
+  rerunError?: string;
   onRerun?: () => void;
   onApprovalAction?: (action: ApprovalAction) => void;
 }
@@ -35,9 +37,10 @@ export function IncidentDashboard({
   data,
   theme: initialTheme = "dark",
   aiStatus = "cache_fallback",
-  rankingMode = "individual",
   showSopDemoNote = true,
   snapshot,
+  isRerunning = false,
+  rerunError,
   onRerun,
   onApprovalAction,
 }: IncidentDashboardProps) {
@@ -51,16 +54,17 @@ export function IncidentDashboard({
       className="flex min-h-screen flex-col bg-[var(--bg-page)] text-[var(--text-primary)]"
     >
       <Header aiStatus={aiStatus} theme={theme} onToggleTheme={toggleTheme} />
-      <IncidentContextBar incident={data.incident} onRerun={onRerun} />
+      <IncidentContextBar
+        incident={data.incident}
+        onRerun={onRerun}
+        isRerunning={isRerunning}
+        rerunError={rerunError}
+      />
       {snapshot && <SnapshotStatusBar snapshot={snapshot} />}
       <ImpactDag dag={data.dag} />
 
       <div className="flex gap-4 p-7">
-        <CandidateRankingPanel
-          candidates={data.candidates}
-          excludedCandidates={data.excludedCandidates}
-          rankingMode={rankingMode}
-        />
+        <CandidateRankingPanel candidates={data.candidates} excludedCandidates={data.excludedCandidates} />
         <SopPanel sops={data.sops} matchedCount={data.matchedSopCount} showDemoNote={showSopDemoNote} />
         <ApprovalPanel onAction={onApprovalAction} />
       </div>

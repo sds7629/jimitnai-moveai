@@ -5,7 +5,23 @@ interface CandidateRowProps {
   candidate: ResponseCandidate;
 }
 
-/** 대응안 후보 랭킹 한 줄. 상세(detail)가 있으면 클릭으로 P90/CVaR·baseline 비교 자리표시자를 펼친다 */
+function EvidenceSection({ label, colorClass, entries }: { label: string; colorClass: string; entries: [string, unknown][] }) {
+  if (entries.length === 0) return null;
+  return (
+    <div className="mb-1.5">
+      <span className={`rounded px-1.5 py-0.5 text-[9.5px] font-bold ${colorClass}`}>{label}</span>
+      <div className="mt-1 pl-1">
+        {entries.map(([key, value]) => (
+          <div key={key}>
+            ㆍ{key}: {String(value)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** 대응안 후보 랭킹 한 줄. 상세(detail)가 있으면 클릭으로 P90/CVaR·FACT/INFERENCE/ASSUMPTION을 펼친다 */
 export function CandidateRow({ candidate }: CandidateRowProps) {
   const [open, setOpen] = useState(true);
   const clampedRatio = Math.min(100, Math.max(0, candidate.mitigationRatio));
@@ -42,19 +58,32 @@ export function CandidateRow({ candidate }: CandidateRowProps) {
       </div>
 
       {candidate.detail && open && (
-        <div className="mt-2.5 rounded-md border border-dashed border-[var(--border-btn)] bg-[var(--panel-bg-2)] p-3">
-          <div
-            className="flex h-16 items-center justify-center rounded font-mono text-[10px] text-[var(--text-tertiary)]"
-            style={{
-              backgroundImage:
-                "repeating-linear-gradient(45deg, var(--stripe), var(--stripe) 6px, transparent 6px, transparent 12px)",
-            }}
-          >
-            {candidate.detail.distributionPlaceholder}
+        <div className="mt-2.5 rounded-md border border-dashed border-[var(--border-btn)] bg-[var(--panel-bg-2)] p-3 text-[10.5px] leading-relaxed text-[var(--text-secondary)]">
+          <div className="mb-2">
+            {candidate.detail.p90 && <>P90 {candidate.detail.p90} ㆍ </>}
+            {candidate.detail.cvar && <>CVaR {candidate.detail.cvar} ㆍ </>}
+            {candidate.detail.confidencePercent !== null && <>신뢰도 {candidate.detail.confidencePercent}%</>}
           </div>
-          <div className="mt-2 text-[10.5px] text-[var(--text-tertiary)]">
-            {candidate.detail.baselineComparisonPlaceholder}
-          </div>
+          {candidate.detail.sensitivityVariables.length > 0 && (
+            <div className="mb-2">
+              민감도 변수: {candidate.detail.sensitivityVariables.map((v) => String(v)).join(", ")}
+            </div>
+          )}
+          <EvidenceSection
+            label="FACT"
+            colorClass="bg-[var(--blue-chip-bg)] text-[var(--blue)]"
+            entries={Object.entries(candidate.detail.fact)}
+          />
+          <EvidenceSection
+            label="INFERENCE"
+            colorClass="bg-[var(--red-chip-bg)] text-[var(--red)]"
+            entries={Object.entries(candidate.detail.inference)}
+          />
+          <EvidenceSection
+            label="ASSUMPTION"
+            colorClass="bg-[var(--blue-chip-bg)] text-[var(--amber)]"
+            entries={Object.entries(candidate.detail.assumption)}
+          />
         </div>
       )}
     </div>

@@ -10,14 +10,6 @@
 export type AiStatus = "live" | "cache_fallback" | "degraded";
 
 /**
- * 대응안 랭킹 계산 방식.
- * - individual: 각 후보를 단독으로 적용했을 때의 결과
- * - cumulative: 1→N번 순차 누적 적용했을 때의 결과
- * (frontend/DAG_SCREEN_DESIGN_BRIEF.md §4에서 남긴 계산 의미 미정 이슈 — 백엔드 확정값 확인 필요)
- */
-export type RankingMode = "individual" | "cumulative";
-
-/**
  * Impact DAG 노드의 도메인 엔티티 종류.
  * frontend/docs/FEATURE_PHASES.md Phase 2: 실제 백엔드 응답(impact_dag_nodes)에는 이 필드가 없다 —
  * 백엔드가 나중에 추가하면 다시 채워 넣을 수 있도록 optional로만 남겨둔다.
@@ -28,8 +20,6 @@ export type DagEntityType =
   | "production_line"
   | "transport"
   | "dealer";
-
-export type EvidenceTag = "FACT" | "INFERENCE" | "ASSUMPTION";
 
 /**
  * 노드 클릭 시 펼쳐지는 근거 상세.
@@ -65,12 +55,21 @@ export interface DagColumn {
 
 export type ImpactDag = DagColumn[];
 
-/** 대응안 후보 상세(펼쳤을 때 표시할 자리표시자 영역) */
+/**
+ * 대응안 후보 상세(펼쳤을 때 표시할 영역).
+ * backend/app/schemas/simulate.py의 SimulationResultRead 필드를 그대로 사용한다 (Phase 5에서
+ * P90/CVaR 자리표시자를 실제 값으로 교체).
+ */
 export interface ResponseCandidateDetail {
-  /** P90/CVaR 분포 차트 자리표시자 — simulation-supply-chain-tool.md §5.1 */
-  distributionPlaceholder: string;
-  /** 지금 대응·6시간 후 대응·무대응 비교 자리표시자 */
-  baselineComparisonPlaceholder: string;
+  /** 이미 포맷된 금액 문자열 (예: "1,234.5억원") */
+  p90: string | null;
+  cvar: string | null;
+  /** 0~100 사이 값 (백엔드는 0~1 confidence를 반환 — 매핑 시 %로 변환) */
+  confidencePercent: number | null;
+  sensitivityVariables: unknown[];
+  fact: Record<string, unknown>;
+  inference: Record<string, unknown>;
+  assumption: Record<string, unknown>;
 }
 
 export interface ResponseCandidate {

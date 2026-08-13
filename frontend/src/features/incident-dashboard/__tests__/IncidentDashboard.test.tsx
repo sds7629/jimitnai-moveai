@@ -43,12 +43,9 @@ describe("IncidentDashboard — prop 기반 상태 분기", () => {
     expect(screen.getByText("AI: 성능저하")).toBeInTheDocument();
   });
 
-  it("rankingMode에 따라 랭킹 안내 문구가 바뀐다 (개별 vs 누적)", () => {
-    const { rerender } = render(<IncidentDashboard data={strikeScenarioMock} rankingMode="individual" />);
-    expect(screen.getByText(/개별 결과입니다/)).toBeInTheDocument();
-
-    rerender(<IncidentDashboard data={strikeScenarioMock} rankingMode="cumulative" />);
-    expect(screen.getByText(/순차 누적 적용/)).toBeInTheDocument();
+  it("대응안 후보가 0건이면 시뮬레이션 미실행 안내를 표시한다", () => {
+    render(<IncidentDashboard data={{ ...strikeScenarioMock, candidates: [] }} />);
+    expect(screen.getByText(/아직 시뮬레이션 결과가 없습니다/)).toBeInTheDocument();
   });
 
   it("showSopDemoNote가 false면 데모용 워터마크 문구를 표시하지 않는다", () => {
@@ -80,6 +77,12 @@ describe("IncidentDashboard — 인터랙션", () => {
 
     await user.click(screen.getByRole("button", { name: "다시 실행" }));
     expect(onRerun).toHaveBeenCalledTimes(1);
+  });
+
+  it("isRerunning이 true면 '다시 실행' 버튼이 비활성화되고 실행 중 문구를 보여준다", () => {
+    render(<IncidentDashboard data={strikeScenarioMock} isRerunning />);
+    const button = screen.getByRole("button", { name: "실행 중..." });
+    expect(button).toBeDisabled();
   });
 
   it("승인 액션 버튼 클릭 시 선택한 action과 함께 onApprovalAction이 호출된다", async () => {
