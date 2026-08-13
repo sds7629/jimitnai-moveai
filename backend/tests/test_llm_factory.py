@@ -74,3 +74,30 @@ def test_llm_provider_value_is_case_insensitive_and_trimmed():
     env = {"LLM_PROVIDER": "  GEMINI_API  ", "GEMINI_API_KEY": "fake-key"}
     provider = get_llm_provider(env=env)
     assert isinstance(provider, GeminiAPIProvider)
+
+
+# ------------------------------------------------------------------
+# GEMINI_USE_VERTEX_AI wiring -- added after discovering (via a real key)
+# that this project's actual GEMINI_API_KEY is a Vertex AI Express Mode key,
+# which 403s with API_KEY_SERVICE_BLOCKED unless vertexai=True is passed to
+# genai.Client(). Defaults to True for that reason; must be possible to turn
+# off for a plain AI Studio key.
+# ------------------------------------------------------------------
+
+
+def test_gemini_use_vertex_ai_defaults_to_true_when_unset():
+    env = {"GEMINI_API_KEY": "fake-key"}
+    provider = get_llm_provider(env=env)
+    assert provider.use_vertex_ai is True
+
+
+def test_gemini_use_vertex_ai_false_is_honored():
+    env = {"GEMINI_API_KEY": "fake-key", "GEMINI_USE_VERTEX_AI": "false"}
+    provider = get_llm_provider(env=env)
+    assert provider.use_vertex_ai is False
+
+
+def test_gemini_use_vertex_ai_true_explicit_is_honored():
+    env = {"GEMINI_API_KEY": "fake-key", "GEMINI_USE_VERTEX_AI": "true"}
+    provider = get_llm_provider(env=env)
+    assert provider.use_vertex_ai is True

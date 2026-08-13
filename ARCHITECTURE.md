@@ -169,6 +169,7 @@ jimitnai-moveai/
 | `LLM_PROVIDER` | `gemini_api` \| `claude_cli` | `feature/llm-provider`에서 정의한 LLM 백엔드 선택 |
 | `GEMINI_API_KEY` | (비움) | Gemini API 키 |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | 사용할 Gemini 모델 (2026-08-13 실키 테스트에서 `gemini-2.0-flash`가 더 이상 제공되지 않는 것을 확인해 교체) |
+| `GEMINI_USE_VERTEX_AI` | `true` | 이 프로젝트의 실제 키가 Vertex AI Express Mode 키임을 실키 테스트로 확인(2026-08-13) — `false`면 일반 AI Studio(Generative Language API) 방식으로 호출하며, 키 종류와 맞지 않으면 403 PERMISSION_DENIED(API_KEY_SERVICE_BLOCKED)가 난다 |
 | `VITE_API_BASE_URL` | `http://localhost:8000` | 프론트엔드(브라우저)가 호출할 백엔드 주소 |
 
 비밀값(`GEMINI_API_KEY` 등)은 이미지나 compose 파일에 하드코딩하지 않고 `.env` 파일(커밋 제외, `.env.example`만 커밋)로만 주입한다.
