@@ -6,6 +6,8 @@ import {
   POST_REPORT_SECTIONS,
   type CandidatesReviewedSection,
   type CostAttributionApi,
+  type DynamicVariableChangesSection,
+  type ExpectedVsActualProgressSection,
   type FinalDecisionSection,
   type OverviewSection,
   type PostReportApi,
@@ -13,12 +15,15 @@ import {
 import { formatKrwToEokwon } from "../lib/currency";
 import { OverviewAndDecisionCard } from "../features/post-report/components/OverviewAndDecisionCard";
 import { ReviewedCandidatesTable } from "../features/post-report/components/ReviewedCandidatesTable";
+import { ExpectedProgressAndChanges } from "../features/post-report/components/ExpectedProgressAndChanges";
 
-/** Phase 19에서 전용 UI로 옮긴 섹션 — 아래 일반 JSON 렌더링 목록에서는 제외한다.
- * 앞으로 Phase 20~24가 섹션을 하나씩 옮길 때마다 이 목록에 키를 추가한다
+/** Phase 19~21에서 전용 UI로 옮긴 섹션 — 아래 일반 JSON 렌더링 목록에서는 제외한다.
+ * 앞으로 Phase 22~24가 섹션을 하나씩 옮길 때마다 이 목록에 키를 추가한다
  * (DecisionPackagePanel의 MIGRATED_SECTION_KEYS와 같은 패턴, frontend/docs/FEATURE_PHASES.md Phase 19~24). */
 const MIGRATED_SECTION_KEYS = new Set([
   "1_사건_개요와_발생시점",
+  "2_최초_예상과_실제_진행_과정",
+  "3_주요_동적_변수의_변화",
   "4_검토한_대응안과_제외_사유",
   "5_최종_결정과_승인자",
 ]);
@@ -42,6 +47,16 @@ const EMPTY_CANDIDATES_REVIEWED: CandidatesReviewedSection = {
   total_count: 0,
   excluded_count: 0,
   candidates: [],
+};
+const EMPTY_PROGRESS: ExpectedVsActualProgressSection = {
+  expected: { baseline: { available: false }, approved_candidate: { available: false } },
+  actual_status: "미확정",
+  actual_progress: { available: false, reason: "-" },
+};
+const EMPTY_CHANGES: DynamicVariableChangesSection = {
+  snapshot_count: 0,
+  versions: [],
+  changes_summary: [],
 };
 
 type LoadState =
@@ -116,6 +131,19 @@ export function PostReportPage() {
     assumptions_at_intake: rawOverview.assumptions_at_intake ?? EMPTY_OVERVIEW.assumptions_at_intake,
     created_at: rawOverview.created_at ?? EMPTY_OVERVIEW.created_at,
   };
+  const rawProgress = (postReport.sections["2_최초_예상과_실제_진행_과정"] ??
+    {}) as Partial<ExpectedVsActualProgressSection>;
+  const progress: ExpectedVsActualProgressSection = {
+    expected: rawProgress.expected ?? EMPTY_PROGRESS.expected,
+    actual_status: rawProgress.actual_status ?? EMPTY_PROGRESS.actual_status,
+    actual_progress: rawProgress.actual_progress ?? EMPTY_PROGRESS.actual_progress,
+  };
+  const rawChanges = (postReport.sections["3_주요_동적_변수의_변화"] ?? {}) as Partial<DynamicVariableChangesSection>;
+  const changes: DynamicVariableChangesSection = {
+    snapshot_count: rawChanges.snapshot_count ?? EMPTY_CHANGES.snapshot_count,
+    versions: rawChanges.versions ?? EMPTY_CHANGES.versions,
+    changes_summary: rawChanges.changes_summary ?? EMPTY_CHANGES.changes_summary,
+  };
   const rawDecision = (postReport.sections["5_최종_결정과_승인자"] ?? {}) as Partial<FinalDecisionSection>;
   const decision: FinalDecisionSection = {
     approvals_history: rawDecision.approvals_history ?? EMPTY_FINAL_DECISION.approvals_history,
@@ -166,6 +194,10 @@ export function PostReportPage() {
 
       <div className="mb-5">
         <OverviewAndDecisionCard overview={overview} decision={decision} />
+      </div>
+
+      <div className="mb-5">
+        <ExpectedProgressAndChanges progress={progress} changes={changes} />
       </div>
 
       <div className="mb-5">

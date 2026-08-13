@@ -27,8 +27,46 @@ const postReport: PostReportApi = {
       assumptions_at_intake: [],
       created_at: "2026-08-10T00:10:00Z",
     },
-    "2_최초_예상과_실제_진행_과정": {},
-    "3_주요_동적_변수의_변화": {},
+    "2_최초_예상과_실제_진행_과정": {
+      expected: {
+        baseline: {
+          available: true,
+          candidate_id: 1,
+          candidate_type: "무대응",
+          description: "아무 조치도 하지 않음",
+          start_time_variant: null,
+          simulation: {
+            available: true,
+            expected_loss: 1_200_000_000,
+            p90: 1_800_000_000,
+            cvar: 2_100_000_000,
+            confidence: 0.82,
+            data_version: "d1",
+            scenario_version: "s1",
+            calculated_at: "2026-08-10T01:00:00Z",
+          },
+        },
+        approved_candidate: { available: false },
+      },
+      actual_status: "미확정",
+      actual_progress: { available: false, reason: "실제 진행 실적을 입력받는 API가 없습니다." },
+    },
+    "3_주요_동적_변수의_변화": {
+      snapshot_count: 1,
+      versions: [
+        {
+          snapshot_id: 10,
+          data_version: "d1",
+          scenario_version: "s1",
+          quality_mode: "limited",
+          freshness_seconds: 7200,
+          coverage_ratio: 0.4,
+          assumptions: ["선복 확보 지연"],
+          created_at: "2026-08-10T01:00:00Z",
+        },
+      ],
+      changes_summary: ["스냅샷이 1개뿐이라 버전 간 변화 이력이 없음 (최초 스냅샷만 존재)"],
+    },
     "4_검토한_대응안과_제외_사유": {
       total_count: 2,
       excluded_count: 1,
@@ -99,7 +137,8 @@ describe("PostReportPage — 정상 시나리오(happy path)", () => {
     renderAt("2");
 
     expect(await screen.findByText("잠정")).toBeInTheDocument();
-    expect(screen.getByText(/미확정/)).toBeInTheDocument();
+    // Phase 20 이후 "미확정"은 예상 진행 카드에도 나오므로 상단 실적 배지를 정규식으로 특정한다
+    expect(screen.getByText(/실적: 미확정/)).toBeInTheDocument();
     expect(screen.getByText(/실적 확정값을 입력받는 API가 없습니다/)).toBeInTheDocument();
     // 1번(사건 개요)·5번(최종 결정) 섹션은 Phase 19에서 OverviewAndDecisionCard로 옮겨져
     // 더 이상 raw label로 나오지 않고 실제 값(항만 파업)으로 렌더링된다
@@ -122,6 +161,40 @@ describe("PostReportPage — 사건 개요·최종 결정 카드", () => {
     expect(screen.getByText(/승인\/반려 이력/)).toBeInTheDocument();
     expect(screen.queryByText("1. 사건 개요와 발생시점")).not.toBeInTheDocument();
     expect(screen.queryByText("5. 최종 결정과 승인자")).not.toBeInTheDocument();
+  });
+});
+
+describe("PostReportPage — 예상 진행·동적 변수 변화 카드", () => {
+  it("2번·3번 섹션은 JSON이 아니라 ExpectedProgressAndChanges로 렌더링한다", async () => {
+    mockGetPostReport.mockResolvedValue(postReport);
+    mockGetCostAttribution.mockResolvedValue(costAttribution);
+
+    renderAt("2");
+
+    expect(await screen.findByText("최초 예상 · 실제 진행 · 동적 변수 변화")).toBeInTheDocument();
+    expect(screen.getByText("무대응")).toBeInTheDocument();
+    expect(screen.getByText("12.0억원")).toBeInTheDocument();
+    expect(screen.getByText("해당 후보 없음")).toBeInTheDocument();
+    expect(screen.getByText(/실제 진행: 미확정/)).toBeInTheDocument();
+    expect(screen.getByText("제한 모드")).toBeInTheDocument();
+    expect(screen.getByText("커버리지 40%")).toBeInTheDocument();
+    expect(screen.getByText(/스냅샷이 1개뿐이라/)).toBeInTheDocument();
+    expect(screen.queryByText("2. 최초 예상과 실제 진행 과정")).not.toBeInTheDocument();
+    expect(screen.queryByText("3. 주요 동적 변수의 변화")).not.toBeInTheDocument();
+  });
+
+  it("섹션 값이 비어 있어도 기본값으로 오류 없이 렌더링한다", async () => {
+    mockGetPostReport.mockResolvedValue({
+      ...postReport,
+      sections: { ...postReport.sections, "2_최초_예상과_실제_진행_과정": {}, "3_주요_동적_변수의_변화": {} },
+    });
+    mockGetCostAttribution.mockResolvedValue(costAttribution);
+
+    renderAt("2");
+
+    expect(await screen.findByText("최초 예상 · 실제 진행 · 동적 변수 변화")).toBeInTheDocument();
+    expect(screen.getAllByText("해당 후보 없음")).toHaveLength(2);
+    expect(screen.getByText("스냅샷 이력이 없습니다.")).toBeInTheDocument();
   });
 });
 
