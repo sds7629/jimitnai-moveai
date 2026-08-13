@@ -74,11 +74,19 @@ class _FakeSimProvider:
         )
 
 
+class _FakeReviewProvider:
+    """Fake for stage 4 (다중 관점 교차검증, app/services/candidate_review.py)."""
+
+    def generate(self, prompt, *, system=None, temperature=0.7):
+        return json.dumps({"concern_level": "low", "comment": "자동화된 교차검증 코멘트", "flags": []})
+
+
 @pytest.fixture(autouse=True)
 def _fake_llm_and_embeddings(monkeypatch):
     monkeypatch.setattr("app.rag.search.embed_text", lambda _text: [0.0] * 768)
     monkeypatch.setattr("app.services.response_design.get_llm_provider", lambda: _FakeCandidateProvider())
     monkeypatch.setattr("app.services.simulation.get_llm_provider", lambda: _FakeSimProvider())
+    monkeypatch.setattr("app.services.candidate_review.get_llm_provider", lambda: _FakeReviewProvider())
 
 
 def _loc(base: str) -> str:
@@ -126,6 +134,9 @@ def test_simulate_pipeline_runs_end_to_end_for_new_incident():
     assert body["candidate_count"] >= 2  # baseline + at least 1 LLM candidate
     assert body["validated_count"] == body["candidate_count"]
     assert body["simulated_count"] >= 1
+    # Stage 4 (다중 관점 교차검증): 3 candidate_reviews rows (cost/feasibility/
+    # risk) per simulated candidate.
+    assert body["reviewed_count"] == body["simulated_count"] * 3
 
     candidates_resp = client.get(f"/incidents/{incident['id']}/candidates")
     assert candidates_resp.status_code == 200, candidates_resp.text
@@ -168,6 +179,7 @@ def test_simulate_reuses_existing_candidates_for_seeded_incident(db_session):
     body = resp.json()
     assert body["reused_existing_candidates"] is True
     assert body["candidate_count"] == candidate_count_before  # no duplicates created
+    assert body["reviewed_count"] == body["simulated_count"] * 3
 
     after_first = client.get(f"/incidents/{incident_id}/candidates").json()
     assert len(after_first["candidates"]) == candidate_count_before
@@ -177,12 +189,15 @@ def test_simulate_reuses_existing_candidates_for_seeded_incident(db_session):
     assert first_sim_ids  # at least one simulation result now exists
 
     # Re-run: still no new candidates, but a fresh simulation_results row
-    # per eligible candidate (append-only -- old rows untouched).
+    # per eligible candidate (append-only -- old rows untouched), and a
+    # fresh set of candidate_reviews rows re-reviewing against the new
+    # simulation numbers.
     resp2 = client.post(f"/incidents/{incident_id}/simulate")
     assert resp2.status_code == 200, resp2.text
     body2 = resp2.json()
     assert body2["reused_existing_candidates"] is True
     assert body2["candidate_count"] == candidate_count_before
+    assert body2["reviewed_count"] == body2["simulated_count"] * 3
 
     after_second = client.get(f"/incidents/{incident_id}/candidates").json()
     second_sim_ids = {

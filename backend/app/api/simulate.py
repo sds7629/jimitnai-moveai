@@ -1,12 +1,13 @@
 """POST /incidents/{id}/simulate + GET /incidents/{id}/candidates
 (agents/response-design.md, agents/constraint-validation.md,
-agents/simulation.md).
+agents/simulation.md, agents/response-optimization.md).
 
-This is the one pipeline all three "simulate" personas share: candidate
+This is the one pipeline all four "simulate" personas share: candidate
 generation (stage 1) -> constraint validation (stage 2) -> LLM-based loss
-simulation (stage 3), run in that fixed order
+simulation (stage 3) -> 다중 관점 교차검증 (stage 4, cost/feasibility/risk
+cross-review), run in that fixed order
 (simulation-supply-chain-tool.md §7.3) against the shared
-response_candidates / simulation_results tables.
+response_candidates / simulation_results / candidate_reviews tables.
 
 Re-run policy (a judgment call this wave had to make -- there is no
 separate "reset candidates" endpoint and response_candidates is mutable,
@@ -26,13 +27,17 @@ not append-only, so both directions were possible):
     genuinely new set of candidates is ever needed, that is a job for a
     dedicated "regenerate candidates" action in a future wave, not the
     default behavior of re-POSTing here.
-  - Stages 2 and 3 always re-run on every call regardless of the branch
+  - Stages 2, 3 and 4 always re-run on every call regardless of the branch
     above: stage 2 (validate_candidates) just re-evaluates and updates the
-    same mutable rows in place, and stage 3 (simulate_candidates) always
+    same mutable rows in place, stage 3 (simulate_candidates) always
     appends new simulation_results rows (append-only -- see
     app/repositories/simulation_results.py), which is exactly the
     "재시뮬레이션 트리거" behavior agents/simulation.md work item #5
-    requires.
+    requires, and stage 4 (review_candidates_for_incident) always appends a
+    fresh set of candidate_reviews rows (also append-only) against
+    whichever simulation_results rows stage 3 just produced -- a re-run
+    re-reviews against the newest numbers rather than reusing stale
+    cross-review verdicts.
 """
 
 from __future__ import annotations
@@ -51,6 +56,7 @@ from app.schemas.simulate import (
     SimulatePipelineResponse,
     SimulationResultRead,
 )
+from app.services.candidate_review import CandidateReviewError, review_candidates_for_incident
 from app.services.constraint_validation import validate_candidates
 from app.services.operational_graph import (
     IncidentNotEligibleError,
@@ -96,6 +102,13 @@ async def trigger_simulate_pipeline(incident_id: int, db: Session = Depends(get_
     except LLMConfigError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
+    try:
+        reviewed = await review_candidates_for_incident(db, incident_id)
+    except CandidateReviewError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except LLMConfigError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
     candidate_count = len(candidate_repo.for_incident(incident_id))
 
     return SimulatePipelineResponse(
@@ -104,6 +117,7 @@ async def trigger_simulate_pipeline(incident_id: int, db: Session = Depends(get_
         candidate_count=candidate_count,
         validated_count=len(validated),
         simulated_count=len(simulated),
+        reviewed_count=len(reviewed),
     )
 
 

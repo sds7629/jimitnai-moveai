@@ -15,6 +15,7 @@ from app.models.operational_snapshot import OperationalSnapshot
 from app.models.impact_dag import ImpactDagNode, ImpactDagEdge
 from app.models.response_candidate import ResponseCandidate
 from app.models.simulation_result import SimulationResult
+from app.models.candidate_review import CandidateReview
 from app.models.decision_package import DecisionPackage
 from app.models.approval import Approval
 from app.models.document import Document, DocumentChunk
@@ -28,6 +29,7 @@ __all__ = [
     "ImpactDagEdge",
     "ResponseCandidate",
     "SimulationResult",
+    "CandidateReview",
     "DecisionPackage",
     "Approval",
     "Document",

@@ -9,15 +9,20 @@ per simulation-supply-chain-tool.md §7.2/§3.3):
     "recompute" always means inserting a brand-new row, never patching the
     latest one.
   - This endpoint compares the latest existing package's created_at
-    against the most recent simulation_results row's created_at for the
-    incident (across all its candidates): if a simulation has completed
-    *after* the current latest package was built -- or no package exists
-    yet at all -- a fresh package is built and returned. Otherwise the
-    existing latest package is reused as-is.
+    against both (a) the most recent simulation_results row's created_at
+    and (b) the most recent candidate_reviews row's created_at for the
+    incident (across all its candidates): if a simulation has completed, or
+    a 다중 관점 교차검증 review has been (re-)appended, *after* the current
+    latest package was built -- or no package exists yet at all -- a fresh
+    package is built and returned. Otherwise the existing latest package is
+    reused as-is.
   - This guarantees the one hard requirement from the wave brief ("시뮬레이
-    션이 새로 갱신됐는데 패키지가 그 이전 걸 캐싱해서 보여주는 일은 없어야 한다")
+    션이 새로 갱신됐는데 패키지가 그 이전 걸 캐싱해서 보여주는 일은 없어야 한다"),
+    now extended to reviews (a fresh /simulate call's stage 4 appends new
+    candidate_reviews rows too -- those must not be served stale either),
     while not silently piling up an identical new row on every unrelated
-    GET call for an incident whose simulation results have not changed.
+    GET call for an incident whose simulation results and reviews have not
+    changed.
 """
 
 from __future__ import annotations
@@ -26,6 +31,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.repositories.candidate_reviews import CandidateReviewRepository
 from app.repositories.decision_packages import DecisionPackageRepository
 from app.repositories.simulation_results import SimulationResultRepository
 from app.schemas.decision_package import DecisionPackageRead
@@ -43,16 +49,21 @@ router = APIRouter(prefix="/incidents", tags=["response-optimization"])
 def get_decision_package(incident_id: int, db: Session = Depends(get_db)) -> DecisionPackageRead:
     package_repo = DecisionPackageRepository(db)
     sim_repo = SimulationResultRepository(db)
+    review_repo = CandidateReviewRepository(db)
 
     existing = package_repo.latest_for_incident(incident_id)
     # for_incident() orders by created_at ascending -- the last element (if
-    # any) is the most recently produced simulation_results row for this
-    # incident, across every one of its candidates.
+    # any) is the most recently produced simulation_results/candidate_reviews
+    # row for this incident, across every one of its candidates.
     sims = sim_repo.for_incident(incident_id)
     latest_sim_created_at = sims[-1].created_at if sims else None
+    reviews = review_repo.for_incident(incident_id)
+    latest_review_created_at = reviews[-1].created_at if reviews else None
 
-    needs_recompute = existing is None or (
-        latest_sim_created_at is not None and latest_sim_created_at > existing.created_at
+    needs_recompute = (
+        existing is None
+        or (latest_sim_created_at is not None and latest_sim_created_at > existing.created_at)
+        or (latest_review_created_at is not None and latest_review_created_at > existing.created_at)
     )
 
     if needs_recompute:

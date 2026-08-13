@@ -38,8 +38,17 @@ Plus `ranked_candidates`, which is the actual "대응 조합 순위화" delivera
 (agents/response-optimization.md work item #2) -- kept as its own top-level
 key alongside (not instead of) the 10 required items above.
 
+Plus `cross_perspective_reviews` -- the 다중 관점 교차검증 (multi-perspective
+cross-review, simulation-supply-chain-tool.md §7.1 "Level 2") results from
+app/services/candidate_review.py exposed verbatim per candidate/lens, so a
+human reviewer can see *why* a candidate ranked where it did, not just the
+final composite_score. This is additional transparency alongside the 10
+required items, not a replacement for any of them.
+
 No text in this module ever asserts that a given candidate/ranking "is the
-answer" -- see `DISCLAIMER` below, which is carried into every package.
+answer" -- see `DISCLAIMER` below, which is carried into every package. The
+lens reviews surfaced in `cross_perspective_reviews` are concerns raised by
+independent LLM calls, never a verdict -- see that section's own `note`.
 """
 
 from __future__ import annotations
@@ -51,11 +60,13 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.models.candidate_review import CandidateReview
 from app.models.impact_dag import ImpactDagEdge, ImpactDagNode
 from app.models.operational_snapshot import OperationalSnapshot
 from app.models.response_candidate import ResponseCandidate
 from app.models.simulation_result import SimulationResult
 from app.models.decision_package import DecisionPackage
+from app.repositories.candidate_reviews import CandidateReviewRepository
 from app.repositories.decision_packages import DecisionPackageRepository
 from app.repositories.impact_dag import ImpactDagEdgeRepository, ImpactDagNodeRepository
 from app.repositories.response_candidates import ResponseCandidateRepository
@@ -262,7 +273,46 @@ def _feasibility_penalty(candidate: ResponseCandidate) -> float:
     return float("inf")
 
 
-def rank_candidates(pairs: list[tuple[ResponseCandidate, SimulationResult]]) -> list[dict[str, Any]]:
+# Concern-level -> penalty weight for the 다중 관점 교차검증 (multi-perspective
+# cross-review, app/services/candidate_review.py) signal. Values chosen to
+# sit in the same rough range as _feasibility_penalty's 조건부 base (0.15) so
+# neither penalty structurally dominates the other: "low" contributes
+# nothing, "medium" is a mild nudge, "high" is a much larger penalty than
+# any feasibility penalty a merely-조건부 candidate could accumulate.
+REVIEW_CONCERN_PENALTY_WEIGHTS: dict[str, float] = {"low": 0.0, "medium": 0.2, "high": 0.5}
+
+
+def _review_penalty(reviews_by_lens: dict[str, CandidateReview] | None) -> float:
+    """Cross-review penalty derived from the 3 independent lens reviews
+    (cost/feasibility/risk -- app/services/candidate_review.py). Returns 0
+    when there are no reviews at all (candidate never reviewed, or review
+    stage not yet run for this incident) -- never an error, so ranking a
+    pre-existing incident with no cross-review history degrades gracefully.
+
+    Deliberately MAX-based across the 3 lenses, not an average: if even one
+    lens (say, risk) is genuinely alarmed (concern_level='high') while the
+    other two are calm ('low'), an average would work out to roughly
+    (0.5 + 0 + 0)/3 ≈ 0.17 -- barely above a single 'medium' lens, and easily
+    swamped by the rest of the composite score. That would silently defeat
+    the entire point of asking 3 *independent* lenses: one alarmed
+    perspective would get diluted away by two calm ones instead of being
+    heard. Taking the max instead means the candidate's whole composite_score
+    reflects the single worst independent concern raised about it -- a
+    reviewer looking only at the ranking still sees that *something* is
+    seriously wrong, even if two of the three lenses saw nothing."""
+
+    if not reviews_by_lens:
+        return 0.0
+    return max(
+        REVIEW_CONCERN_PENALTY_WEIGHTS.get(review.concern_level, 0.0)
+        for review in reviews_by_lens.values()
+    )
+
+
+def rank_candidates(
+    pairs: list[tuple[ResponseCandidate, SimulationResult]],
+    reviews_by_candidate: dict[int, dict[str, CandidateReview]] | None = None,
+) -> list[dict[str, Any]]:
     """Ranks executable single-or-combined response candidates (baseline
     included) by a composite score, ascending (rank 1 = lowest composite
     risk). `pairs` must already be filtered to candidates that actually
@@ -270,13 +320,34 @@ def rank_candidates(pairs: list[tuple[ResponseCandidate, SimulationResult]]) -> 
     validation marked 불가능 or that was never simulated for any other
     reason (ARCHITECTURE.md §4.4: "시뮬레이션 결과가 없는 후보를 최적화 대상에
     넣지 않는다"); this function does not re-check that itself so it stays
-    a pure ranking function over whatever it is handed."""
+    a pure ranking function over whatever it is handed.
+
+    `reviews_by_candidate` maps candidate_id -> {lens: latest CandidateReview}
+    (see CandidateReviewRepository.latest_by_lens_for_candidate) -- optional
+    and defaults to "no reviews for anyone" so callers that have not run the
+    다중 관점 교차검증 stage yet (or candidates it has no data for) still get
+    a normal ranking with review_penalty=0, never an error.
+
+    The review penalty is combined with the feasibility penalty the same
+    way `_feasibility_penalty` was already being combined with risk before
+    this feature existed: summed together *inside* the same
+    `(1 + ...)` multiplier, rather than as its own separate multiplicative
+    factor. This keeps both penalties proportional to the candidate's own
+    risk_score (a candidate with near-zero risk stays near zero even with a
+    'high' review concern -- the review flags a *relative* concern, not an
+    absolute cost) and lets them compound simply by addition when a
+    candidate happens to carry both a feasibility penalty (조건부) and a
+    review penalty (a concerned lens) at the same time, instead of one
+    penalty overriding or being swallowed by the other."""
+
+    reviews_by_candidate = reviews_by_candidate or {}
 
     scored: list[dict[str, Any]] = []
     for candidate, sim in pairs:
         risk = _risk_score(sim)
-        penalty = _feasibility_penalty(candidate)
-        composite = risk * (1 + penalty)
+        feasibility_penalty = _feasibility_penalty(candidate)
+        review_penalty = _review_penalty(reviews_by_candidate.get(candidate.id))
+        composite = risk * (1 + feasibility_penalty + review_penalty)
         scored.append(
             {
                 "candidate_id": candidate.id,
@@ -289,7 +360,8 @@ def rank_candidates(pairs: list[tuple[ResponseCandidate, SimulationResult]]) -> 
                 "p90": _to_float(sim.p90),
                 "cvar": _to_float(sim.cvar),
                 "risk_score": risk,
-                "feasibility_penalty": penalty,
+                "feasibility_penalty": feasibility_penalty,
+                "review_penalty": review_penalty,
                 "composite_score": composite,
             }
         )
@@ -348,6 +420,61 @@ def _causal_path(nodes: list[ImpactDagNode], edges: list[ImpactDagEdge]) -> dict
     }
 
 
+def _group_latest_reviews_by_candidate(
+    reviews: list[CandidateReview],
+) -> dict[int, dict[str, CandidateReview]]:
+    """Groups a flat, ascending-by-created_at list of candidate_reviews rows
+    (as returned by CandidateReviewRepository.for_incident) into
+    {candidate_id: {lens: latest CandidateReview}} -- since the list is
+    ascending, later rows simply overwrite earlier ones per (candidate_id,
+    lens), which is exactly "the most recent row per lens" without a
+    second query per candidate (mirrors
+    CandidateReviewRepository.latest_by_lens_for_candidate, but batched
+    across every candidate of the incident in one pass)."""
+
+    by_candidate: dict[int, dict[str, CandidateReview]] = {}
+    for review in reviews:
+        by_candidate.setdefault(review.candidate_id, {})[review.lens] = review
+    return by_candidate
+
+
+def _cross_perspective_reviews_section(
+    all_candidates: list[ResponseCandidate],
+    reviews_by_candidate: dict[int, dict[str, CandidateReview]],
+) -> dict[str, Any]:
+    """다중 관점 교차검증 결과를 후보별로 그대로(verbatim) 노출한다 -- 담당자가
+    "왜 이 순위가 나왔는가"를 감사할 수 있도록. 후보에 리뷰가 아직 없으면(리뷰
+    단계를 아직 실행하지 않은 기존 사건 등) 빈 reviews와 review_penalty=0으로
+    표시할 뿐, 이 섹션 생성 자체가 실패하지 않는다. 이 섹션의 어떤 문구도 특정
+    대응안이 정답이라고 단정하지 않는다 -- 우려사항을 노출할 뿐이다."""
+
+    by_candidate: dict[str, Any] = {}
+    for candidate in all_candidates:
+        lens_reviews = reviews_by_candidate.get(candidate.id, {})
+        by_candidate[str(candidate.id)] = {
+            "reviews": {
+                lens: {
+                    "concern_level": review.concern_level,
+                    "comment": review.comment,
+                    "flags": list(review.flags or []),
+                    "reviewed_at": review.created_at,
+                }
+                for lens, review in lens_reviews.items()
+            },
+            "review_penalty": _review_penalty(lens_reviews),
+        }
+
+    return {
+        "note": (
+            "각 대응안에 대한 비용(cost)/실행가능성(feasibility)/리스크(risk) 3개 독립 관점의 "
+            "우려사항이다. 특정 대응안이 정답이라고 단정하지 않으며, ranked_candidates의 "
+            "review_penalty로만 참고된다. 리뷰가 없는 후보는 review 단계가 아직 실행되지 않았음을 "
+            "의미할 뿐, 우려사항이 없다는 뜻이 아니다."
+        ),
+        "by_candidate": by_candidate,
+    }
+
+
 @dataclass
 class _CandidateBundle:
     """One incident's candidates partitioned by whether they have a latest
@@ -403,6 +530,14 @@ def build_decision_package(db: Session, incident_id: int) -> DecisionPackage:
     edges = edge_repo.for_snapshot(snapshot.id)
 
     bundle = _load_candidate_bundle(db, incident_id)
+
+    # ---- 다중 관점 교차검증 (cross_perspective_reviews) ----
+    # Missing entirely (pre-existing incidents, or the review stage simply
+    # hasn't run yet) degrades gracefully: _group_latest_reviews_by_candidate
+    # over an empty list yields {}, so every candidate below just shows
+    # review_penalty=0 / no reviews rather than raising.
+    all_reviews = CandidateReviewRepository(db).for_incident(incident_id)
+    reviews_by_candidate = _group_latest_reviews_by_candidate(all_reviews)
 
     # ---- 1. expected_loss_p90_cvar ----
     expected_loss_p90_cvar = {
@@ -509,8 +644,8 @@ def build_decision_package(db: Session, incident_id: int) -> DecisionPackage:
     # ---- 10. recommended_deadline ----
     deadline, deadline_detail = compute_recommended_deadline(nodes, edges)
 
-    # ---- ranking (work item #2) ----
-    ranked = rank_candidates(bundle.with_sim)
+    # ---- ranking (work item #2), now review_penalty-aware ----
+    ranked = rank_candidates(bundle.with_sim, reviews_by_candidate)
     excluded_from_ranking = [
         {
             "candidate_id": c.id,
@@ -524,6 +659,9 @@ def build_decision_package(db: Session, incident_id: int) -> DecisionPackage:
         for c in bundle.without_sim
     ]
 
+    # ---- cross_perspective_reviews (다중 관점 교차검증, additional transparency) ----
+    cross_perspective_reviews = _cross_perspective_reviews_section(bundle.all_candidates, reviews_by_candidate)
+
     package: dict[str, Any] = {
         "expected_loss_p90_cvar": expected_loss_p90_cvar,
         "now_vs_6h_vs_no_action": now_vs_6h_vs_no_action,
@@ -536,6 +674,7 @@ def build_decision_package(db: Session, incident_id: int) -> DecisionPackage:
         "confidence_and_uncertainty": confidence_and_uncertainty,
         "recommended_deadline": {"deadline": deadline, "detail": deadline_detail},
         "ranked_candidates": {"ranked": ranked, "excluded_from_ranking": excluded_from_ranking},
+        "cross_perspective_reviews": cross_perspective_reviews,
         "disclaimer": DISCLAIMER,
     }
 

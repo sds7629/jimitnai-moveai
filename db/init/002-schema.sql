@@ -158,6 +158,30 @@ COMMENT ON TABLE simulation_results IS
   'LLM 산출 예측 결과. append-only, UPDATE 금지 (재시뮬레이션은 새 행).';
 
 -- ============================================================
+-- candidate_reviews (append-only)
+-- ============================================================
+-- 다중 관점 교차검증 (agents/response-optimization.md, simulation-supply-
+-- chain-tool.md §7.1 대응 최적화 에이전트, Level 2). 시뮬레이션 결과가 있는
+-- 후보마다 비용(cost)/실행가능성(feasibility)/리스크(risk) 3개의 독립된
+-- LLM 호출이 각자의 행을 남긴다 -- 재검토도 기존 행을 고치지 않고 새 행을
+-- 추가한다 (simulation_results와 동일한 append-only 근거).
+CREATE TABLE candidate_reviews (
+    id                    BIGSERIAL PRIMARY KEY,
+    candidate_id          BIGINT NOT NULL REFERENCES response_candidates(id),
+    incident_id           BIGINT NOT NULL REFERENCES incidents(id),
+    simulation_result_id  BIGINT REFERENCES simulation_results(id),
+    lens                  TEXT NOT NULL CHECK (lens IN ('cost','feasibility','risk')),
+    concern_level         TEXT NOT NULL CHECK (concern_level IN ('low','medium','high')),
+    comment               TEXT NOT NULL,
+    flags                 JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_candidate_reviews_candidate ON candidate_reviews(candidate_id);
+
+COMMENT ON TABLE candidate_reviews IS
+  '다중 관점(비용/실행가능성/리스크) 교차검증 결과. append-only, UPDATE 금지 (재검토는 새 행).';
+
+-- ============================================================
 -- decision_packages
 -- ============================================================
 CREATE TABLE decision_packages (
