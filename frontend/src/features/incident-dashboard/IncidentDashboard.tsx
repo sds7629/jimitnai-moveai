@@ -3,6 +3,7 @@ import type { AiStatus, ApprovalAction, IncidentDashboardData } from "./types";
 import type { SnapshotSummary } from "../snapshot/format";
 import type { DecisionPackageApi } from "../decision-package/types";
 import type { SopStatusItemApi } from "../sop-dispatch/types";
+import type { SopTransitionStatus, TimelineEventApi } from "../execution-tracking/types";
 import { Header } from "./components/Header";
 import { IncidentContextBar } from "./components/IncidentContextBar";
 import { SnapshotStatusBar } from "./components/SnapshotStatusBar";
@@ -11,6 +12,7 @@ import { DecisionPackagePanel } from "./components/DecisionPackagePanel";
 import { CandidateRankingPanel } from "./components/CandidateRankingPanel";
 import { SopPanel } from "./components/SopPanel";
 import { SopDispatchPanel } from "./components/SopDispatchPanel";
+import { TimelineView } from "./components/TimelineView";
 import { ApprovalPanel } from "./components/ApprovalPanel";
 
 export interface IncidentDashboardProps {
@@ -34,8 +36,14 @@ export interface IncidentDashboardProps {
   /** undefined면 패널 자체를 렌더링하지 않는다(Phase 9 이전 호출부와의 호환). 빈 배열이면 패널은
    * 보이되 "아직 발송되지 않음" 안내를 보여준다 — 승인 전에는 실제로 발송 이력이 없는 게 정상이다. */
   sopStatuses?: SopStatusItemApi[];
+  /** PATCH /sop/{sop_id}/status가 진행 중일 때 상태 전이 버튼들을 잠근다 (Phase 10) */
+  isUpdatingSopStatus?: boolean;
+  sopStatusUpdateError?: string;
+  /** undefined면 타임라인 섹션을 렌더링하지 않는다 (Phase 10) */
+  timelineEvents?: TimelineEventApi[];
   onRerun?: () => void;
   onApprovalSubmit?: (action: ApprovalAction, reason: string, approver: string) => void;
+  onSopStatusUpdate?: (sopId: number, status: SopTransitionStatus, actor: string) => void;
 }
 
 /**
@@ -60,8 +68,12 @@ export function IncidentDashboard({
   approvalError,
   deadlineOverrunNotice = false,
   sopStatuses,
+  isUpdatingSopStatus = false,
+  sopStatusUpdateError,
+  timelineEvents,
   onRerun,
   onApprovalSubmit,
+  onSopStatusUpdate,
 }: IncidentDashboardProps) {
   // theme prop은 초기값으로만 쓰고, 이후 전환은 헤더의 토글 버튼으로 내부 상태에서 관리한다
   const [theme, setTheme] = useState<"dark" | "light">(initialTheme);
@@ -105,7 +117,21 @@ export function IncidentDashboard({
 
       {sopStatuses !== undefined && (
         <div className="px-7 pb-7">
-          <SopDispatchPanel sopStatuses={sopStatuses} />
+          <SopDispatchPanel
+            sopStatuses={sopStatuses}
+            isUpdating={isUpdatingSopStatus}
+            updateError={sopStatusUpdateError}
+            onStatusUpdate={onSopStatusUpdate}
+          />
+        </div>
+      )}
+
+      {timelineEvents !== undefined && (
+        <div className="px-7 pb-7">
+          <div className="rounded-[10px] border border-[var(--border)] bg-[var(--panel-bg)] p-4.5">
+            <div className="mb-3 text-[13.5px] font-bold text-[var(--text-secondary-strong)]">실행 추적 타임라인</div>
+            <TimelineView events={timelineEvents} />
+          </div>
         </div>
       )}
     </div>

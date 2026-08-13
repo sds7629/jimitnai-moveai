@@ -11,6 +11,7 @@ import { getDecisionPackage } from "../../features/decision-package/api";
 import { submitApproval } from "../../features/approvals/api";
 import { useIncidentStream } from "../../features/stream/useIncidentStream";
 import { dispatchSop, getSopStatus } from "../../features/sop-dispatch/api";
+import { getTimeline, updateSopStatus } from "../../features/execution-tracking/api";
 import type { IncidentListItem } from "../../features/incidents/types";
 import type { ImpactDagApiResponse } from "../../features/impact-dag/types";
 import type { OperationalSnapshotApi } from "../../features/snapshot/types";
@@ -26,6 +27,7 @@ vi.mock("../../features/decision-package/api");
 vi.mock("../../features/approvals/api");
 vi.mock("../../features/stream/useIncidentStream");
 vi.mock("../../features/sop-dispatch/api");
+vi.mock("../../features/execution-tracking/api");
 const mockListIncidents = vi.mocked(listIncidents);
 const mockGetImpactDag = vi.mocked(getImpactDag);
 const mockGetLatestSnapshot = vi.mocked(getLatestSnapshot);
@@ -36,6 +38,8 @@ const mockSubmitApproval = vi.mocked(submitApproval);
 const mockUseIncidentStream = vi.mocked(useIncidentStream);
 const mockDispatchSop = vi.mocked(dispatchSop);
 const mockGetSopStatus = vi.mocked(getSopStatus);
+const mockGetTimeline = vi.mocked(getTimeline);
+const mockUpdateSopStatus = vi.mocked(updateSopStatus);
 
 // 이 파일 뒤쪽 테스트들이 mockDispatchSop.not.toHaveBeenCalled() 같은 음성 단언을 쓰기 때문에,
 // 이전 테스트의 호출 이력이 남아있으면 안 된다.
@@ -170,6 +174,7 @@ function mockAllSuccess() {
   mockListCandidates.mockResolvedValue(candidatesResponse);
   mockGetDecisionPackage.mockResolvedValue(decisionPackage);
   mockGetSopStatus.mockResolvedValue({ incident_id: 2, sop_statuses: [] });
+  mockGetTimeline.mockResolvedValue({ incident_id: 2, events: [] });
 }
 
 describe("IncidentDetailPage — 정상 시나리오(happy path)", () => {
@@ -194,6 +199,7 @@ describe("IncidentDetailPage — 로딩 상태", () => {
     mockListCandidates.mockReturnValue(new Promise(() => {}));
     mockGetDecisionPackage.mockReturnValue(new Promise(() => {}));
     mockGetSopStatus.mockReturnValue(new Promise(() => {}));
+    mockGetTimeline.mockReturnValue(new Promise(() => {}));
 
     renderAt("2");
 
@@ -489,5 +495,111 @@ describe("IncidentDetailPage — SOP 자동 발송", () => {
     // 승인 자체는 성공했으므로 제출 실패 메시지 없이 기존 화면이 유지된다
     await screen.findByText("안전재고 사전 당김");
     expect(screen.queryByText(/제출 실패/)).not.toBeInTheDocument();
+  });
+});
+
+const dispatchedSop = {
+  sop_id: 9,
+  incident_id: 2,
+  role: "항만",
+  approval_id: 42,
+  action_summary: "우선 반출 대상 컨테이너 처리",
+  dispatched_at: "2026-08-13T03:00:00Z",
+  dispatched_by: "김담당",
+  status: "발송",
+  received_at: null,
+  accepted_at: null,
+  completed_at: null,
+  failed_at: null,
+  events: [],
+};
+
+describe("IncidentDetailPage — SOP 상태 전이 및 타임라인", () => {
+  it("상태 전이 성공 시 PATCH를 호출하고 SOP 상태·타임라인을 다시 불러온다", async () => {
+    const user = userEvent.setup();
+    mockAllSuccess();
+    mockGetSopStatus.mockResolvedValue({ incident_id: 2, sop_statuses: [dispatchedSop] });
+
+    renderAt("2");
+    await screen.findByText("항만");
+
+    mockUpdateSopStatus.mockResolvedValue({
+      id: 100,
+      incident_id: 2,
+      sop_id: 9,
+      status: "수신",
+      actor: "박현장",
+      note: null,
+      created_at: "2026-08-13T04:00:00Z",
+      deviation_check: null,
+    });
+    mockGetSopStatus.mockResolvedValue({ incident_id: 2, sop_statuses: [{ ...dispatchedSop, status: "수신" }] });
+    mockGetTimeline.mockResolvedValue({
+      incident_id: 2,
+      events: [
+        {
+          id: 1,
+          event_type: "sop_status_changed",
+          actor: "박현장",
+          reason: null,
+          sop_id: 9,
+          status: "수신",
+          payload: {},
+          created_at: "2026-08-13T04:00:00Z",
+          is_deviation_event: false,
+        },
+      ],
+    });
+
+    await user.type(screen.getByLabelText("실행자"), "박현장");
+    await user.click(screen.getByRole("button", { name: "수신" }));
+
+    expect(mockUpdateSopStatus).toHaveBeenCalledWith(9, { status: "수신", actor: "박현장" });
+    expect(await screen.findByText("sop_status_changed")).toBeInTheDocument();
+  });
+
+  it("편차가 감지되면(deviation_check 존재) DAG·후보·의사결정 패키지도 다시 불러온다", async () => {
+    const user = userEvent.setup();
+    mockAllSuccess();
+    mockGetSopStatus.mockResolvedValue({ incident_id: 2, sop_statuses: [dispatchedSop] });
+
+    renderAt("2");
+    await screen.findByText("항만");
+
+    mockUpdateSopStatus.mockResolvedValue({
+      id: 101,
+      incident_id: 2,
+      sop_id: 9,
+      status: "실패",
+      actor: "박현장",
+      note: null,
+      created_at: "2026-08-13T04:00:00Z",
+      deviation_check: { triggered: true },
+    });
+    mockGetSopStatus.mockResolvedValue({ incident_id: 2, sop_statuses: [{ ...dispatchedSop, status: "실패" }] });
+    mockGetTimeline.mockResolvedValue({ incident_id: 2, events: [] });
+    mockGetImpactDag.mockResolvedValue({ ...dag, nodes: [{ ...dag.nodes[0], label: "재계산된 노드" }] });
+
+    await user.type(screen.getByLabelText("실행자"), "박현장");
+    await user.click(screen.getByRole("button", { name: "실패" }));
+
+    expect(await screen.findByText("재계산된 노드")).toBeInTheDocument();
+  });
+
+  it("상태 전이가 실패하면 에러 문구를 보여주고 기존 화면은 유지한다", async () => {
+    const user = userEvent.setup();
+    mockAllSuccess();
+    mockGetSopStatus.mockResolvedValue({ incident_id: 2, sop_statuses: [dispatchedSop] });
+
+    renderAt("2");
+    await screen.findByText("항만");
+
+    mockUpdateSopStatus.mockRejectedValue(new Error("상태 전이 실패"));
+
+    await user.type(screen.getByLabelText("실행자"), "박현장");
+    await user.click(screen.getByRole("button", { name: "수신" }));
+
+    expect(await screen.findByText(/상태 갱신 실패/)).toBeInTheDocument();
+    expect(screen.getByText("항만")).toBeInTheDocument();
   });
 });
