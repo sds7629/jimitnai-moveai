@@ -329,7 +329,7 @@ def _create_snapshot_and_dag(db: Session, incident: Incident) -> OperationalSnap
     # that later response-design/simulation comparisons depend on.
     assumptions = list(incident.assumptions or []) + quality_notes
     assumptions.append(
-        "ASSUMPTION: 실시간 항만/재고/생산 시스템 연동 없음(ARCHITECTURE.md §6) — "
+        "ASSUMPTION: 실시간 항만·재고·생산 시스템과 연동돼 있지 않아 "
         f"{scenario_key} 시나리오 표준 소비율 {consumption}ea/h, 안전재고 {safety_stock}ea, "
         f"현재 재고 {qty}ea 가정치를 적용함"
     )

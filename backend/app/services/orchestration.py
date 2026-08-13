@@ -432,8 +432,9 @@ def check_deadline_overrun(db: Session, incident_id: int) -> bool:
         incident_id=incident_id,
         decision_type="기한초과",
         reason=(
-            f"권고 결정기한({deadline.isoformat()}) 초과 -- 담당자 결정 없음. "
-            "상위 책임자 에스컬레이션을 기록함(실제 알림 발송은 스코프 밖, ARCHITECTURE.md §6)."
+            f"권고 결정기한({deadline.isoformat()})을 초과했지만 담당자 결정이 없어 "
+            "시스템이 자동으로 상위 책임자 에스컬레이션을 기록했습니다. (실제 알림 발송은 "
+            "이번 버전에서 지원하지 않습니다.)"
         ),
         approver=SYSTEM_ACTOR,
         data_version_ref=data_version_ref,
@@ -444,7 +445,7 @@ def check_deadline_overrun(db: Session, incident_id: int) -> bool:
         incident_id=incident_id,
         event_type="deadline_overrun_escalated",
         actor=SYSTEM_ACTOR,
-        reason="결정기한 초과 -- 상위 책임자 에스컬레이션 기록(실제 알림 발송 없음, ARCHITECTURE.md §6)",
+        reason="결정기한 초과로 상위 책임자 에스컬레이션을 기록함 (실제 알림 발송은 지원하지 않음)",
         payload={
             "recommended_deadline": deadline.isoformat(),
             "decision_package_id": latest_package.id,
