@@ -120,7 +120,7 @@ export const strikeScenarioMock: IncidentDashboardData = {
     },
   ],
   excludedCandidates: [
-    { name: "대체 완성차 재고 배정", reason: "✕ 가용 대체 완성차 재고 없음(현재고 0), 실행 불가" },
+    { id: 1, name: "대체 완성차 재고 배정", reason: "✕ 가용 대체 완성차 재고 없음(현재고 0), 실행 불가" },
   ],
   matchedSopCount: 6,
   sops: [

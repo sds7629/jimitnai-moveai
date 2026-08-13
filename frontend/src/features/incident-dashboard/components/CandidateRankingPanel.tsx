@@ -35,7 +35,7 @@ export function CandidateRankingPanel({ candidates, excludedCandidates }: Candid
           <div className="mb-1.5 text-[11.5px] font-bold text-[var(--text-secondary)]">제외된 대응안</div>
           {excludedCandidates.map((excluded) => (
             <div
-              key={excluded.name}
+              key={excluded.id}
               className="rounded-md border border-dashed border-[var(--border-dashed)] px-2.5 py-2 text-[11px] text-[var(--text-secondary)]"
             >
               <span className="font-semibold text-[var(--text-secondary-strong)]">{excluded.name}</span> —{" "}
