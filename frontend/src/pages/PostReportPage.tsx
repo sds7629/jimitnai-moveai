@@ -1,0 +1,119 @@
+import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import { getCostAttribution, getPostReport } from "../features/post-report/api";
+import {
+  COST_ATTRIBUTION_LABELS,
+  POST_REPORT_SECTIONS,
+  type CostAttributionApi,
+  type PostReportApi,
+} from "../features/post-report/types";
+import { formatKrwToEokwon } from "../lib/currency";
+
+type LoadState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "success"; postReport: PostReportApi; costAttribution: CostAttributionApi };
+
+/**
+ * 사후보고서 화면 (frontend/docs/FEATURE_PHASES.md Phase 11).
+ *
+ * 진행 중 대시보드(/incidents/:id)와 관심사가 달라(사후 정산) 별도 라우트로 분리했다
+ * (FRONTEND_ARCHITECTURE.md §3 원래 라우팅 표에도 별도 경로로 계획돼 있었음).
+ *
+ * report_status는 이 시스템 스코프상 항상 "잠정", actual_status는 항상 "미확정"이다 —
+ * scope_limitation_note를 화면 상단에서 숨기지 않고 그대로 보여준다. 비용 귀속도
+ * is_heuristic=true인 안전한 휴리스틱이라 heuristic_disclaimer를 함께 노출한다.
+ */
+export function PostReportPage() {
+  const { id } = useParams<{ id: string }>();
+  const incidentId = Number(id);
+  const [state, setState] = useState<LoadState>({ status: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    Promise.all([getPostReport(incidentId), getCostAttribution(incidentId)])
+      .then(([postReport, costAttribution]) => {
+        if (!cancelled) setState({ status: "success", postReport, costAttribution });
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setState({
+            status: "error",
+            message: error instanceof Error ? error.message : "알 수 없는 오류",
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [incidentId]);
+
+  if (state.status === "loading") {
+    return (
+      <div data-theme="dark" className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-secondary)]">
+        불러오는 중...
+      </div>
+    );
+  }
+
+  if (state.status === "error") {
+    return (
+      <div data-theme="dark" className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--red)]">
+        사후보고서를 불러오지 못했습니다: {state.message}
+      </div>
+    );
+  }
+
+  const { postReport, costAttribution } = state;
+
+  return (
+    <div data-theme="dark" className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-primary)]">
+      <div className="mb-5 flex items-center gap-3">
+        <div className="text-[19px] font-bold">사후보고서</div>
+        <span className="rounded-full border border-[var(--amber)] px-2.5 py-1 text-[11px] font-semibold text-[var(--amber)]">
+          {postReport.report_status}
+        </span>
+        <span className="rounded-full border border-[var(--border-mid)] px-2.5 py-1 text-[11px] text-[var(--text-secondary)]">
+          실적: {postReport.actual_status}
+        </span>
+      </div>
+
+      <div className="mb-5 rounded-md border border-dashed border-[var(--border-dashed)] bg-[var(--panel-bg-2)] px-3 py-2.5 text-[11px] text-[var(--text-secondary)]">
+        {postReport.scope_limitation_note}
+      </div>
+
+      <div className="mb-5 rounded-[10px] border border-[var(--border)] bg-[var(--panel-bg)] p-4.5">
+        <div className="mb-3 text-[13.5px] font-bold text-[var(--text-secondary-strong)]">
+          비용 귀속 {costAttribution.is_heuristic && "(휴리스틱)"}
+        </div>
+        <div className="mb-2 text-[10.5px] text-[var(--amber)]">{costAttribution.heuristic_disclaimer}</div>
+        <div className="flex gap-4">
+          {COST_ATTRIBUTION_LABELS.map(({ key, label }) => (
+            <div key={key} className="flex-1 rounded-md border border-[var(--border)] p-3">
+              <div className="text-[10.5px] text-[var(--text-tertiary)]">{label}</div>
+              <div className="mt-1 text-[15px] font-bold text-[var(--teal)]">
+                {formatKrwToEokwon(costAttribution.breakdown[key] ?? null)}
+              </div>
+            </div>
+          ))}
+        </div>
+        {costAttribution.classification_note && (
+          <div className="mt-2 text-[10.5px] text-[var(--text-tertiary)]">{costAttribution.classification_note}</div>
+        )}
+      </div>
+
+      <div className="rounded-[10px] border border-[var(--border)] bg-[var(--panel-bg)] p-4.5">
+        {POST_REPORT_SECTIONS.map(({ key, label }) => (
+          <div key={key} className="border-b border-[var(--border)] py-2.5 last:border-b-0">
+            <div className="mb-1 text-[11.5px] font-bold text-[var(--text-secondary-strong)]">{label}</div>
+            <pre className="whitespace-pre-wrap break-words rounded bg-[var(--panel-bg-2)] p-2 text-[10px] leading-relaxed text-[var(--text-secondary)]">
+              {JSON.stringify(postReport.sections[key] ?? null, null, 2)}
+            </pre>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

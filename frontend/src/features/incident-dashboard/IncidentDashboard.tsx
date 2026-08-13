@@ -41,6 +41,8 @@ export interface IncidentDashboardProps {
   sopStatusUpdateError?: string;
   /** undefined면 타임라인 섹션을 렌더링하지 않는다 (Phase 10) */
   timelineEvents?: TimelineEventApi[];
+  /** 없으면 "사후보고서 보기" 링크를 렌더링하지 않는다 (Phase 11) */
+  postReportHref?: string;
   onRerun?: () => void;
   onApprovalSubmit?: (action: ApprovalAction, reason: string, approver: string) => void;
   onSopStatusUpdate?: (sopId: number, status: SopTransitionStatus, actor: string) => void;
@@ -71,6 +73,7 @@ export function IncidentDashboard({
   isUpdatingSopStatus = false,
   sopStatusUpdateError,
   timelineEvents,
+  postReportHref,
   onRerun,
   onApprovalSubmit,
   onSopStatusUpdate,
@@ -95,6 +98,7 @@ export function IncidentDashboard({
         onRerun={onRerun}
         isRerunning={isRerunning}
         rerunError={rerunError}
+        postReportHref={postReportHref}
       />
       {snapshot && <SnapshotStatusBar snapshot={snapshot} />}
       <ImpactDag dag={data.dag} />

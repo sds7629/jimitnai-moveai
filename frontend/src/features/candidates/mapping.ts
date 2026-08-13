@@ -1,11 +1,6 @@
 import type { ExcludedCandidate, ResponseCandidate } from "../incident-dashboard/types";
 import { BASELINE_CANDIDATE_TYPE, type CandidateApi } from "./types";
-
-/** 원(KRW) → "###.#억원" 문자열. null이면 "-" */
-function formatKrwToEokwon(value: number | null): string {
-  if (value === null) return "-";
-  return `${(value / 100_000_000).toFixed(1)}억원`;
-}
+import { formatKrwToEokwon } from "../../lib/currency";
 
 interface MappedCandidates {
   candidates: ResponseCandidate[];

@@ -1,11 +1,13 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { IncidentListPage } from "./pages/IncidentListPage";
 import { IncidentDetailPage } from "./pages/IncidentDetailPage";
+import { PostReportPage } from "./pages/PostReportPage";
 
 /**
  * 라우팅 골격.
- * `/incidents/:id`는 Phase 2부터 실제 Impact DAG API로 연동됐다 — 대응안 랭킹/SOP/승인 패널만
- * 아직 목업(frontend/docs/FEATURE_PHASES.md Phase 5 이후)이다.
+ * `/incidents/:id`는 Phase 2부터 실제 API로 연동됐다(Phase 10까지: DAG/스냅샷/대응안/의사결정근거/
+ * 승인/SOP발송/실행추적). `/incidents/:id/post-report`는 Phase 11에서 분리한 별도 라우트 —
+ * 진행 중 대시보드와 관심사가 달라(사후 정산) 한 화면에 얹지 않았다.
  */
 function App() {
   return (
@@ -13,6 +15,7 @@ function App() {
       <Routes>
         <Route path="/" element={<IncidentListPage />} />
         <Route path="/incidents/:id" element={<IncidentDetailPage />} />
+        <Route path="/incidents/:id/post-report" element={<PostReportPage />} />
       </Routes>
     </BrowserRouter>
   );

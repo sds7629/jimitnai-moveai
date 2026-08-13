@@ -307,6 +307,7 @@ export function IncidentDetailPage() {
       sopStatusUpdateError={sopStatusUpdateError}
       onSopStatusUpdate={handleSopStatusUpdate}
       timelineEvents={state.timelineEvents}
+      postReportHref={`/incidents/${incidentId}/post-report`}
     />
   );
 }

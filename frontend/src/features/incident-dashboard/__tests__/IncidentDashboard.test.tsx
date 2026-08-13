@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { IncidentDashboard } from "../IncidentDashboard";
 import { strikeScenarioMock } from "../mockData";
 import { CandidateRow } from "../components/CandidateRow";
@@ -197,6 +198,25 @@ describe("IncidentDashboard — 실행 추적 타임라인", () => {
   it("timelineEvents prop이 없으면 타임라인 섹션을 렌더링하지 않는다", () => {
     render(<IncidentDashboard data={strikeScenarioMock} />);
     expect(screen.queryByText("실행 추적 타임라인")).not.toBeInTheDocument();
+  });
+});
+
+describe("IncidentDashboard — 사후보고서 링크", () => {
+  it("postReportHref가 있으면 해당 경로로 이동하는 링크를 렌더링한다", () => {
+    render(
+      <MemoryRouter>
+        <IncidentDashboard data={strikeScenarioMock} postReportHref="/incidents/2/post-report" />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("link", { name: "사후보고서 보기" })).toHaveAttribute(
+      "href",
+      "/incidents/2/post-report",
+    );
+  });
+
+  it("postReportHref가 없으면 링크를 렌더링하지 않는다", () => {
+    render(<IncidentDashboard data={strikeScenarioMock} />);
+    expect(screen.queryByText("사후보고서 보기")).not.toBeInTheDocument();
   });
 });
 
