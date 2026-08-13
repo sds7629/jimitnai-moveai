@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+/*
+ * 디자인 토큰: Claude 디자인 와이어프레임(DAG 대시보드.dc.html)의 CSS 변수를 그대로 가져왔다.
+ * 컴포넌트에서는 이 변수를 Tailwind 임의값 문법(예: bg-[var(--panel-bg)])으로 참조한다.
+ */
+body {
+  margin: 0;
+  font-family: "Noto Sans KR", sans-serif;
+}
+
+[data-theme="dark"] {
+  --bg-page: #0a0e16;
+  --panel-bg: #11151f;
+  --panel-bg-2: #0e1219;
+  --node-bg: #161b26;
+  --text-primary: #f4f5f7;
+  --text-body: #e8eaee;
+  --text-secondary: #8b93a7;
+  --text-secondary-strong: #c3c8d1;
+  --text-tertiary: #5b6472;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-mid: rgba(255, 255, 255, 0.14);
+  --border-input: rgba(255, 255, 255, 0.1);
+  --border-dashed: rgba(255, 255, 255, 0.2);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  --border-btn: rgba(255, 255, 255, 0.18);
+  --red: #f5455c;
+  --red-border: rgba(245, 69, 94, 0.5);
+  --red-border-strong: rgba(245, 69, 94, 0.6);
+  --red-connector: rgba(245, 69, 94, 0.45);
+  --red-metric: rgba(245, 69, 94, 0.85);
+  --red-chip-bg: rgba(245, 69, 94, 0.15);
+  --blue: #4c8bf5;
+  --blue-text-on: #0a0e16;
+  --blue-chip-bg: rgba(76, 139, 245, 0.15);
+  --teal: #2dd4bf;
+  --amber: #c99a3f;
+  --stripe: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="light"] {
+  --bg-page: #f5f3ee;
+  --panel-bg: #ffffff;
+  --panel-bg-2: #f0eee7;
+  --node-bg: #ffffff;
+  --text-primary: #1a1d24;
+  --text-body: #20232b;
+  --text-secondary: #5c6270;
+  --text-secondary-strong: #333844;
+  --text-tertiary: #8b93a1;
+  --border: rgba(0, 0, 0, 0.08);
+  --border-mid: rgba(0, 0, 0, 0.14);
+  --border-input: rgba(0, 0, 0, 0.1);
+  --border-dashed: rgba(0, 0, 0, 0.18);
+  --border-strong: rgba(0, 0, 0, 0.15);
+  --border-btn: rgba(0, 0, 0, 0.16);
+  --red: #d6394f;
+  --red-border: rgba(214, 57, 79, 0.55);
+  --red-border-strong: rgba(214, 57, 79, 0.6);
+  --red-connector: rgba(214, 57, 79, 0.4);
+  --red-metric: rgba(214, 57, 79, 0.9);
+  --red-chip-bg: rgba(214, 57, 79, 0.12);
+  --blue: #2f6fed;
+  --blue-text-on: #ffffff;
+  --blue-chip-bg: rgba(47, 111, 237, 0.12);
+  --teal: #0f9c8a;
+  --amber: #a97a1f;
+  --stripe: rgba(0, 0, 0, 0.05);
+}
