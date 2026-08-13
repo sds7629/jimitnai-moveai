@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -10,6 +10,7 @@ import { listCandidates, runSimulation } from "../../features/candidates/api";
 import { getDecisionPackage } from "../../features/decision-package/api";
 import { submitApproval } from "../../features/approvals/api";
 import { useIncidentStream } from "../../features/stream/useIncidentStream";
+import { dispatchSop, getSopStatus } from "../../features/sop-dispatch/api";
 import type { IncidentListItem } from "../../features/incidents/types";
 import type { ImpactDagApiResponse } from "../../features/impact-dag/types";
 import type { OperationalSnapshotApi } from "../../features/snapshot/types";
@@ -24,6 +25,7 @@ vi.mock("../../features/candidates/api");
 vi.mock("../../features/decision-package/api");
 vi.mock("../../features/approvals/api");
 vi.mock("../../features/stream/useIncidentStream");
+vi.mock("../../features/sop-dispatch/api");
 const mockListIncidents = vi.mocked(listIncidents);
 const mockGetImpactDag = vi.mocked(getImpactDag);
 const mockGetLatestSnapshot = vi.mocked(getLatestSnapshot);
@@ -32,6 +34,14 @@ const mockRunSimulation = vi.mocked(runSimulation);
 const mockGetDecisionPackage = vi.mocked(getDecisionPackage);
 const mockSubmitApproval = vi.mocked(submitApproval);
 const mockUseIncidentStream = vi.mocked(useIncidentStream);
+const mockDispatchSop = vi.mocked(dispatchSop);
+const mockGetSopStatus = vi.mocked(getSopStatus);
+
+// 이 파일 뒤쪽 테스트들이 mockDispatchSop.not.toHaveBeenCalled() 같은 음성 단언을 쓰기 때문에,
+// 이전 테스트의 호출 이력이 남아있으면 안 된다.
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 /** useIncidentStream(incidentId, handlers) 호출에 넘겨진 handlers를 꺼내는 헬퍼 */
 function getStreamHandlers(): IncidentStreamHandlers {
@@ -159,6 +169,7 @@ function mockAllSuccess() {
   mockGetLatestSnapshot.mockResolvedValue(snapshot);
   mockListCandidates.mockResolvedValue(candidatesResponse);
   mockGetDecisionPackage.mockResolvedValue(decisionPackage);
+  mockGetSopStatus.mockResolvedValue({ incident_id: 2, sop_statuses: [] });
 }
 
 describe("IncidentDetailPage — 정상 시나리오(happy path)", () => {
@@ -182,6 +193,7 @@ describe("IncidentDetailPage — 로딩 상태", () => {
     mockGetLatestSnapshot.mockReturnValue(new Promise(() => {}));
     mockListCandidates.mockReturnValue(new Promise(() => {}));
     mockGetDecisionPackage.mockReturnValue(new Promise(() => {}));
+    mockGetSopStatus.mockReturnValue(new Promise(() => {}));
 
     renderAt("2");
 
@@ -373,5 +385,109 @@ describe("IncidentDetailPage — SSE 실시간 갱신", () => {
     });
 
     expect(await screen.findByText(/결정기한이 초과되어/)).toBeInTheDocument();
+  });
+});
+
+describe("IncidentDetailPage — SOP 자동 발송", () => {
+  it("승인이 성공하면 dispatch-sop을 호출하고 발송 상태를 다시 불러온다", async () => {
+    const user = userEvent.setup();
+    mockAllSuccess();
+    mockSubmitApproval.mockResolvedValue({
+      id: 42,
+      incident_id: 2,
+      decision_type: "승인",
+      reason: "재고 확보 완료",
+      approver: "김담당",
+      decided_at: "2026-08-13T03:00:00Z",
+      data_version_ref: "v1",
+      scenario_version_ref: "strike-v1",
+      created_at: "2026-08-13T03:00:00Z",
+    });
+    mockDispatchSop.mockResolvedValue([]);
+
+    renderAt("2");
+    await screen.findByText("안전재고 사전 당김");
+
+    mockGetSopStatus.mockResolvedValue({
+      incident_id: 2,
+      sop_statuses: [
+        {
+          sop_id: 1,
+          incident_id: 2,
+          role: "항만",
+          approval_id: 42,
+          action_summary: "우선 반출 대상 컨테이너 처리",
+          dispatched_at: "2026-08-13T03:00:00Z",
+          dispatched_by: "김담당",
+          status: "발송",
+          received_at: null,
+          accepted_at: null,
+          completed_at: null,
+          failed_at: null,
+          events: [],
+        },
+      ],
+    });
+
+    await user.type(screen.getByLabelText("승인자"), "김담당");
+    await user.type(screen.getByLabelText("사유"), "재고 확보 완료");
+    await user.click(screen.getByRole("button", { name: "승인" }));
+
+    expect(await screen.findByText("우선 반출 대상 컨테이너 처리")).toBeInTheDocument();
+    expect(mockDispatchSop).toHaveBeenCalledWith(42);
+  });
+
+  it("반려는 SOP를 발송하지 않는다", async () => {
+    const user = userEvent.setup();
+    mockAllSuccess();
+    mockSubmitApproval.mockResolvedValue({
+      id: 43,
+      incident_id: 2,
+      decision_type: "반려",
+      reason: "반려 사유입니다",
+      approver: "김담당",
+      decided_at: "2026-08-13T03:00:00Z",
+      data_version_ref: "v1",
+      scenario_version_ref: "strike-v1",
+      created_at: "2026-08-13T03:00:00Z",
+    });
+
+    renderAt("2");
+    await screen.findByText("안전재고 사전 당김");
+
+    await user.type(screen.getByLabelText("승인자"), "김담당");
+    await user.type(screen.getByLabelText("사유"), "반려 사유입니다");
+    await user.click(screen.getByRole("button", { name: "반려" }));
+
+    await screen.findByText("안전재고 사전 당김");
+    expect(mockDispatchSop).not.toHaveBeenCalled();
+  });
+
+  it("SOP 발송이 실패해도 승인 자체는 성공한 화면을 유지한다", async () => {
+    const user = userEvent.setup();
+    mockAllSuccess();
+    mockSubmitApproval.mockResolvedValue({
+      id: 44,
+      incident_id: 2,
+      decision_type: "승인",
+      reason: "재고 확보 완료",
+      approver: "김담당",
+      decided_at: "2026-08-13T03:00:00Z",
+      data_version_ref: "v1",
+      scenario_version_ref: "strike-v1",
+      created_at: "2026-08-13T03:00:00Z",
+    });
+    mockDispatchSop.mockRejectedValue(new Error("발송 실패"));
+
+    renderAt("2");
+    await screen.findByText("안전재고 사전 당김");
+
+    await user.type(screen.getByLabelText("승인자"), "김담당");
+    await user.type(screen.getByLabelText("사유"), "재고 확보 완료");
+    await user.click(screen.getByRole("button", { name: "승인" }));
+
+    // 승인 자체는 성공했으므로 제출 실패 메시지 없이 기존 화면이 유지된다
+    await screen.findByText("안전재고 사전 당김");
+    expect(screen.queryByText(/제출 실패/)).not.toBeInTheDocument();
   });
 });

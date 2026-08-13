@@ -17,6 +17,13 @@ import { submitApproval } from "../features/approvals/api";
 import { APPROVAL_ACTION_TO_DECISION_TYPE } from "../features/approvals/types";
 import type { ApprovalAction } from "../features/incident-dashboard/types";
 import { useIncidentStream } from "../features/stream/useIncidentStream";
+import { dispatchSop, getSopStatus } from "../features/sop-dispatch/api";
+import type { SopStatusItemApi } from "../features/sop-dispatch/types";
+
+/** dispatch-sop을 트리거하는 결정 타입 — communication.py의 APPROVAL_DECISION_TYPES_ELIGIBLE_FOR_DISPATCH
+ * ('승인'/'조건부승인')와 일치. 반려/수정요청은 incident.status가 '승인'으로 안 바뀌므로 호출해도
+ * 어차피 409지만, 애초에 시도하지 않는다. */
+const DISPATCH_ELIGIBLE_ACTIONS: readonly ApprovalAction[] = ["approve", "conditional"];
 
 type LoadState =
   | { status: "loading" }
@@ -30,6 +37,7 @@ type LoadState =
       snapshot: SnapshotSummary;
       candidatesApi: CandidateApi[];
       decisionPackage: DecisionPackageApi;
+      sopStatuses: SopStatusItemApi[];
     };
 
 /**
@@ -66,8 +74,9 @@ export function IncidentDetailPage() {
       getLatestSnapshot(incidentId),
       listCandidates(incidentId),
       getDecisionPackage(incidentId),
+      getSopStatus(incidentId),
     ])
-      .then(([incidents, dag, snapshot, candidatesResponse, decisionPackage]) => {
+      .then(([incidents, dag, snapshot, candidatesResponse, decisionPackage, sopStatusResponse]) => {
         if (cancelled) return;
 
         const incident = incidents.find((item) => item.id === incidentId);
@@ -84,6 +93,7 @@ export function IncidentDetailPage() {
           snapshot: summarizeSnapshot(snapshot),
           candidatesApi: candidatesResponse.candidates,
           decisionPackage,
+          sopStatuses: sopStatusResponse.sop_statuses,
         });
       })
       .catch((error: unknown) => {
@@ -124,7 +134,7 @@ export function IncidentDetailPage() {
       setIsSubmittingApproval(true);
       setApprovalError(undefined);
       try {
-        await submitApproval(incidentId, {
+        const approval = await submitApproval(incidentId, {
           decision_type: APPROVAL_ACTION_TO_DECISION_TYPE[action],
           reason,
           approver,
@@ -138,6 +148,21 @@ export function IncidentDetailPage() {
         setState((prev) =>
           prev.status === "success" ? { ...prev, candidatesApi: candidates, decisionPackage } : prev,
         );
+
+        // 승인/조건부승인만 SOP 발송 대상이다(communication.py). 발송 자체가 실패해도 승인은 이미
+        // 기록됐으므로 approvalError로는 올리지 않고 조용히 무시한다 — 다음 번 상세 조회/새로고침
+        // 시 sop-status를 다시 읽으면 되고, 승인 결과 자체를 되돌릴 이유는 아니다.
+        if (DISPATCH_ELIGIBLE_ACTIONS.includes(action)) {
+          try {
+            await dispatchSop(approval.id);
+            const sopStatusResponse = await getSopStatus(incidentId);
+            setState((prev) =>
+              prev.status === "success" ? { ...prev, sopStatuses: sopStatusResponse.sop_statuses } : prev,
+            );
+          } catch {
+            // 위 주석 참고 — 승인 성공 화면은 그대로 유지한다.
+          }
+        }
       } catch (error: unknown) {
         setApprovalError(error instanceof Error ? error.message : "알 수 없는 오류");
       } finally {
@@ -222,6 +247,7 @@ export function IncidentDetailPage() {
       approvalError={approvalError}
       onApprovalSubmit={handleApprovalSubmit}
       deadlineOverrunNotice={deadlineOverrunNotice}
+      sopStatuses={state.sopStatuses}
     />
   );
 }

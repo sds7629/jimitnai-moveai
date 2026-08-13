@@ -176,6 +176,18 @@ describe("IncidentDashboard — 결정기한 초과 배너 (SSE deadline_overrun
   });
 });
 
+describe("IncidentDashboard — SOP 발송 상태 패널", () => {
+  it("sopStatuses prop이 있으면(빈 배열 포함) 패널을 렌더링한다", () => {
+    render(<IncidentDashboard data={strikeScenarioMock} sopStatuses={[]} />);
+    expect(screen.getByText("역할별 SOP 발송 상태")).toBeInTheDocument();
+  });
+
+  it("sopStatuses prop이 없으면 패널을 렌더링하지 않는다", () => {
+    render(<IncidentDashboard data={strikeScenarioMock} />);
+    expect(screen.queryByText("역할별 SOP 발송 상태")).not.toBeInTheDocument();
+  });
+});
+
 describe("IncidentDashboard — 테마 토글", () => {
   it("기본은 다크 테마이고, 우상단 토글 버튼을 클릭하면 라이트로 바뀐다", async () => {
     const user = userEvent.setup();

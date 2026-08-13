@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { AiStatus, ApprovalAction, IncidentDashboardData } from "./types";
 import type { SnapshotSummary } from "../snapshot/format";
 import type { DecisionPackageApi } from "../decision-package/types";
+import type { SopStatusItemApi } from "../sop-dispatch/types";
 import { Header } from "./components/Header";
 import { IncidentContextBar } from "./components/IncidentContextBar";
 import { SnapshotStatusBar } from "./components/SnapshotStatusBar";
@@ -9,6 +10,7 @@ import { ImpactDag } from "./components/ImpactDag";
 import { DecisionPackagePanel } from "./components/DecisionPackagePanel";
 import { CandidateRankingPanel } from "./components/CandidateRankingPanel";
 import { SopPanel } from "./components/SopPanel";
+import { SopDispatchPanel } from "./components/SopDispatchPanel";
 import { ApprovalPanel } from "./components/ApprovalPanel";
 
 export interface IncidentDashboardProps {
@@ -29,6 +31,9 @@ export interface IncidentDashboardProps {
   approvalError?: string;
   /** SSE deadline_overrun 이벤트 수신 시 true — 결정기한 초과 경고 배너 표시 (Phase 8) */
   deadlineOverrunNotice?: boolean;
+  /** undefined면 패널 자체를 렌더링하지 않는다(Phase 9 이전 호출부와의 호환). 빈 배열이면 패널은
+   * 보이되 "아직 발송되지 않음" 안내를 보여준다 — 승인 전에는 실제로 발송 이력이 없는 게 정상이다. */
+  sopStatuses?: SopStatusItemApi[];
   onRerun?: () => void;
   onApprovalSubmit?: (action: ApprovalAction, reason: string, approver: string) => void;
 }
@@ -54,6 +59,7 @@ export function IncidentDashboard({
   isSubmittingApproval = false,
   approvalError,
   deadlineOverrunNotice = false,
+  sopStatuses,
   onRerun,
   onApprovalSubmit,
 }: IncidentDashboardProps) {
@@ -96,6 +102,12 @@ export function IncidentDashboard({
           onSubmit={onApprovalSubmit}
         />
       </div>
+
+      {sopStatuses !== undefined && (
+        <div className="px-7 pb-7">
+          <SopDispatchPanel sopStatuses={sopStatuses} />
+        </div>
+      )}
     </div>
   );
 }
