@@ -5,7 +5,7 @@ import type {
   SnapshotChangeApi,
   SnapshotVersionApi,
 } from "../types";
-import { formatKrwToEokwon } from "../../../lib/currency";
+import { formatKrwByScale } from "../../../lib/currency";
 import { formatCoverage, formatFreshness, formatQualityMode } from "../../snapshot/format";
 
 function formatDateTime(iso: string): string {
@@ -38,10 +38,10 @@ function CandidateCard({ label, candidate }: { label: string; candidate: Candida
           {candidate.simulation.available ? (
             <>
               <div className="mt-2 text-[10.5px] text-[var(--text-tertiary)]">기대손실</div>
-              <div className="text-[13px] font-bold">{formatKrwToEokwon(candidate.simulation.expected_loss ?? null)}</div>
+              <div className="text-[13px] font-bold">{formatKrwByScale(candidate.simulation.expected_loss ?? null)}</div>
               <div className="mt-1 text-[10.5px] text-[var(--text-tertiary)]">
-                P90 {formatKrwToEokwon(candidate.simulation.p90 ?? null)} · CVaR{" "}
-                {formatKrwToEokwon(candidate.simulation.cvar ?? null)}
+                P90 {formatKrwByScale(candidate.simulation.p90 ?? null)} · CVaR{" "}
+                {formatKrwByScale(candidate.simulation.cvar ?? null)}
               </div>
               {formatConfidence(candidate.simulation.confidence) !== null && (
                 <div className="mt-1 text-[10.5px] text-[var(--text-tertiary)]">
