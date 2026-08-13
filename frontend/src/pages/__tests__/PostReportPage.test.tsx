@@ -103,7 +103,9 @@ const postReport: PostReportApi = {
     "9_LD_DND_귀책_및_비용_부담_주체": {},
     "10_시뮬레이션_오차와_가정의_영향": {},
     "11_자원_확보_실패_실행_편차와_에스컬레이션_이력": {},
-    "12_향후_SOP_모델_데이터_개선사항": {},
+    "12_향후_SOP_모델_데이터_개선사항": [
+      { category: "실적 확정 데이터 입력 메커니즘 부재", description: "실적 입력 API가 없습니다." },
+    ],
   },
 };
 
@@ -143,7 +145,12 @@ describe("PostReportPage — 정상 시나리오(happy path)", () => {
     // 1번(사건 개요)·5번(최종 결정) 섹션은 Phase 19에서 OverviewAndDecisionCard로 옮겨져
     // 더 이상 raw label로 나오지 않고 실제 값(항만 파업)으로 렌더링된다
     expect(screen.getByText("항만 파업")).toBeInTheDocument();
-    expect(screen.getByText("12. 향후 SOP·모델·데이터 개선사항")).toBeInTheDocument();
+    // 10번(시뮬레이션 오차)·12번(향후 개선사항) 섹션은 Phase 24에서 SimulationErrorAndImprovements로
+    // 옮겨져 더 이상 raw label로 나오지 않는다
+    expect(screen.getByText("시뮬레이션 오차와 가정의 영향 · 향후 개선사항")).toBeInTheDocument();
+    expect(screen.getByText("실적 확정 데이터 입력 메커니즘 부재")).toBeInTheDocument();
+    expect(screen.queryByText("10. 시뮬레이션 오차와 가정의 영향")).not.toBeInTheDocument();
+    expect(screen.queryByText("12. 향후 SOP·모델·데이터 개선사항")).not.toBeInTheDocument();
     expect(screen.getByText("직접 손익 효과")).toBeInTheDocument();
     expect(screen.getByText("5.0억원")).toBeInTheDocument();
     expect(screen.getByText(/법무 판단을 대체하지 않습니다/)).toBeInTheDocument();

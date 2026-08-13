@@ -12,8 +12,10 @@ import {
   type ExpectedVsActualLossSection,
   type ExpectedVsActualProgressSection,
   type FinalDecisionSection,
+  type FutureImprovementsSection,
   type OverviewSection,
   type PostReportApi,
+  type SimulationErrorSection,
   type SopHistorySection,
 } from "../features/post-report/types";
 import { formatKrwToEokwon } from "../lib/currency";
@@ -22,9 +24,9 @@ import { ReviewedCandidatesTable } from "../features/post-report/components/Revi
 import { ExpectedProgressAndChanges } from "../features/post-report/components/ExpectedProgressAndChanges";
 import { SopHistoryAndDeviations } from "../features/post-report/components/SopHistoryAndDeviations";
 import { LossSettlementCard } from "../features/post-report/components/LossSettlementCard";
+import { SimulationErrorAndImprovements } from "../features/post-report/components/SimulationErrorAndImprovements";
 
-/** Phase 19~23에서 전용 UI로 옮긴 섹션 — 아래 일반 JSON 렌더링 목록에서는 제외한다.
- * 앞으로 Phase 24가 섹션을 옮길 때마다 이 목록에 키를 추가한다
+/** Phase 19~24 전체에서 전용 UI로 옮긴 섹션 — 아래 일반 JSON 렌더링 목록에서는 제외한다
  * (DecisionPackagePanel의 MIGRATED_SECTION_KEYS와 같은 패턴, frontend/docs/FEATURE_PHASES.md Phase 19~24). */
 const MIGRATED_SECTION_KEYS = new Set([
   "1_사건_개요와_발생시점",
@@ -36,7 +38,9 @@ const MIGRATED_SECTION_KEYS = new Set([
   "7_예상_손실과_실제_손실",
   "8_회피한_손실과_추가_발생_비용",
   "9_LD_DND_귀책_및_비용_부담_주체",
+  "10_시뮬레이션_오차와_가정의_영향",
   "11_자원_확보_실패_실행_편차와_에스컬레이션_이력",
+  "12_향후_SOP_모델_데이터_개선사항",
 ]);
 
 const EMPTY_OVERVIEW: OverviewSection = {
@@ -79,6 +83,11 @@ const EMPTY_LOSS: ExpectedVsActualLossSection = {
 const EMPTY_AVOIDED_LOSS: AvoidedLossSection = {
   expected_avoided_loss: { available: false, amount: null, baseline: null, approved: null, reason: "-" },
   additional_cost_incurred: { available: false, reason: "-" },
+};
+const EMPTY_SIMULATION_ERROR: SimulationErrorSection = {
+  error_calculable: false,
+  reason: "-",
+  candidates: [],
 };
 
 type LoadState =
@@ -201,6 +210,16 @@ export function PostReportPage() {
   };
   // 섹션 9는 costAttribution 상태(GET /incidents/{id}/cost-attribution)와 같은 데이터이므로
   // sections["9_LD_DND_귀책_및_비용_부담_주체"]에서 다시 추출하지 않는다.
+  const rawSimulationError = (postReport.sections["10_시뮬레이션_오차와_가정의_영향"] ??
+    {}) as Partial<SimulationErrorSection>;
+  const simulationError: SimulationErrorSection = {
+    error_calculable: rawSimulationError.error_calculable ?? EMPTY_SIMULATION_ERROR.error_calculable,
+    reason: rawSimulationError.reason ?? EMPTY_SIMULATION_ERROR.reason,
+    candidates: rawSimulationError.candidates ?? EMPTY_SIMULATION_ERROR.candidates,
+  };
+  // 섹션 12는 다른 섹션들과 달리 object가 아니라 배열 자체다(_section_12_future_improvements가
+  // list[dict]를 직접 반환) — Partial<T> + 필드별 기본값 패턴이 아니라 배열째로 기본값 처리한다.
+  const improvements = (postReport.sections["12_향후_SOP_모델_데이터_개선사항"] ?? []) as FutureImprovementsSection;
 
   return (
     <div data-theme="dark" className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-primary)]">
@@ -256,6 +275,10 @@ export function PostReportPage() {
 
       <div className="mb-5">
         <SopHistoryAndDeviations sopHistory={sopHistory} deviationHistory={deviationHistory} />
+      </div>
+
+      <div className="mb-5">
+        <SimulationErrorAndImprovements simulationError={simulationError} improvements={improvements} />
       </div>
 
       <div className="rounded-[10px] border border-[var(--border)] bg-[var(--panel-bg)] p-4.5">

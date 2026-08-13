@@ -273,3 +273,43 @@ export interface AvoidedLossSection {
   expected_avoided_loss: ExpectedAvoidedLossApi;
   additional_cost_incurred: UnavailableWithReasonApi;
 }
+
+/**
+ * Phase 24 전용 타입 — sections["10_시뮬레이션_오차와_가정의_영향"]의 실제 형태
+ * (backend/app/services/post_report.py _section_10_simulation_error 확인).
+ *
+ * error_calculable은 이 시스템 스코프상 항상 false다(실적 데이터 입력 메커니즘이 없어 오차
+ * 계산 불가) — reason을 화면에서 숨기지 않는다. 시뮬레이션 결과가 없는 후보는 candidates
+ * 배열에서 백엔드가 이미 건너뛰므로 빈 배열일 수 있다.
+ */
+export interface SimulationErrorCandidateApi {
+  candidate_id: number;
+  candidate_type: string;
+  confidence: number | null;
+  sensitivity_variables: string[];
+  assumption: Record<string, unknown>;
+  data_version: string;
+  scenario_version: string;
+  calculated_at: string;
+}
+
+export interface SimulationErrorSection {
+  error_calculable: boolean;
+  reason: string;
+  candidates: SimulationErrorCandidateApi[];
+}
+
+/**
+ * Phase 24 전용 타입 — sections["12_향후_SOP_모델_데이터_개선사항"]의 실제 형태
+ * (backend/app/services/post_report.py _section_12_future_improvements 확인).
+ *
+ * 다른 섹션들과 달리 이 섹션은 object가 아니라 배열 자체다(_section_12_future_improvements가
+ * list[dict]를 직접 반환) — 화면에서도 Partial<T> + 필드별 기본값 패턴 대신 배열째로 기본값
+ * 처리한다.
+ */
+export interface FutureImprovementItemApi {
+  category: string;
+  description: string;
+}
+
+export type FutureImprovementsSection = FutureImprovementItemApi[];
