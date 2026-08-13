@@ -6,6 +6,8 @@
  * actual_status는 항상 "미확정"이다(backend/app/services/post_report.py 모듈 docstring) —
  * 화면에서 이 제약을 숨기지 않고 그대로 노출해야 한다.
  */
+import type { ExclusionCategory, ValidationStatus } from "../candidates/types";
+
 export interface PostReportApi {
   incident_id: number;
   report_status: string;
@@ -116,3 +118,25 @@ export type CandidateSummaryApi =
       start_time_variant: string | null;
       simulation: CandidateSimulationApi;
     };
+
+/**
+ * Phase 21 전용 타입 — sections["4_검토한_대응안과_제외_사유"]의 실제 형태
+ * (backend/app/services/post_report.py _section_4_candidates_reviewed 확인).
+ * validation_status가 "가능"이 아닌 후보를 제외로 세기 때문에 "미검증"도 excluded_count에 포함된다.
+ */
+export interface ReviewedCandidateApi {
+  candidate_id: number;
+  candidate_type: string;
+  description: string;
+  start_time_variant: string | null;
+  validation_status: ValidationStatus;
+  exclusion_category: ExclusionCategory | null;
+  exclusion_detail: string | null;
+  preconditions: string[];
+}
+
+export interface CandidatesReviewedSection {
+  total_count: number;
+  excluded_count: number;
+  candidates: ReviewedCandidateApi[];
+}

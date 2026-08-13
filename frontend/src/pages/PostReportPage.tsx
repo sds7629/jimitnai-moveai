@@ -4,6 +4,7 @@ import { getCostAttribution, getPostReport } from "../features/post-report/api";
 import {
   COST_ATTRIBUTION_LABELS,
   POST_REPORT_SECTIONS,
+  type CandidatesReviewedSection,
   type CostAttributionApi,
   type FinalDecisionSection,
   type OverviewSection,
@@ -11,11 +12,16 @@ import {
 } from "../features/post-report/types";
 import { formatKrwToEokwon } from "../lib/currency";
 import { OverviewAndDecisionCard } from "../features/post-report/components/OverviewAndDecisionCard";
+import { ReviewedCandidatesTable } from "../features/post-report/components/ReviewedCandidatesTable";
 
 /** Phase 19에서 전용 UI로 옮긴 섹션 — 아래 일반 JSON 렌더링 목록에서는 제외한다.
  * 앞으로 Phase 20~24가 섹션을 하나씩 옮길 때마다 이 목록에 키를 추가한다
  * (DecisionPackagePanel의 MIGRATED_SECTION_KEYS와 같은 패턴, frontend/docs/FEATURE_PHASES.md Phase 19~24). */
-const MIGRATED_SECTION_KEYS = new Set(["1_사건_개요와_발생시점", "5_최종_결정과_승인자"]);
+const MIGRATED_SECTION_KEYS = new Set([
+  "1_사건_개요와_발생시점",
+  "4_검토한_대응안과_제외_사유",
+  "5_최종_결정과_승인자",
+]);
 
 const EMPTY_OVERVIEW: OverviewSection = {
   incident_id: 0,
@@ -31,6 +37,11 @@ const EMPTY_OVERVIEW: OverviewSection = {
 const EMPTY_FINAL_DECISION: FinalDecisionSection = {
   approvals_history: [],
   final_decision: { available: false, reason: "-" },
+};
+const EMPTY_CANDIDATES_REVIEWED: CandidatesReviewedSection = {
+  total_count: 0,
+  excluded_count: 0,
+  candidates: [],
 };
 
 type LoadState =
@@ -110,6 +121,12 @@ export function PostReportPage() {
     approvals_history: rawDecision.approvals_history ?? EMPTY_FINAL_DECISION.approvals_history,
     final_decision: rawDecision.final_decision ?? EMPTY_FINAL_DECISION.final_decision,
   };
+  const rawReviewed = (postReport.sections["4_검토한_대응안과_제외_사유"] ?? {}) as Partial<CandidatesReviewedSection>;
+  const candidatesReviewed: CandidatesReviewedSection = {
+    total_count: rawReviewed.total_count ?? EMPTY_CANDIDATES_REVIEWED.total_count,
+    excluded_count: rawReviewed.excluded_count ?? EMPTY_CANDIDATES_REVIEWED.excluded_count,
+    candidates: rawReviewed.candidates ?? EMPTY_CANDIDATES_REVIEWED.candidates,
+  };
 
   return (
     <div data-theme="dark" className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-primary)]">
@@ -149,6 +166,10 @@ export function PostReportPage() {
 
       <div className="mb-5">
         <OverviewAndDecisionCard overview={overview} decision={decision} />
+      </div>
+
+      <div className="mb-5">
+        <ReviewedCandidatesTable section={candidatesReviewed} />
       </div>
 
       <div className="rounded-[10px] border border-[var(--border)] bg-[var(--panel-bg)] p-4.5">

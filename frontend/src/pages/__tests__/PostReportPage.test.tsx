@@ -29,7 +29,32 @@ const postReport: PostReportApi = {
     },
     "2_최초_예상과_실제_진행_과정": {},
     "3_주요_동적_변수의_변화": {},
-    "4_검토한_대응안과_제외_사유": {},
+    "4_검토한_대응안과_제외_사유": {
+      total_count: 2,
+      excluded_count: 1,
+      candidates: [
+        {
+          candidate_id: 1,
+          candidate_type: "baseline",
+          description: "현행 유지",
+          start_time_variant: null,
+          validation_status: "가능",
+          exclusion_category: null,
+          exclusion_detail: null,
+          preconditions: [],
+        },
+        {
+          candidate_id: 2,
+          candidate_type: "항공전환",
+          description: "항공 화물 전환",
+          start_time_variant: "D+1",
+          validation_status: "불가능",
+          exclusion_category: "예산초과",
+          exclusion_detail: "항공 운임이 승인 한도를 초과",
+          preconditions: ["긴급 예산 승인"],
+        },
+      ],
+    },
     "5_최종_결정과_승인자": {
       approvals_history: [],
       final_decision: { available: false, reason: "이 사건에 대한 승인/반려 이력(approvals)이 없음" },
@@ -97,6 +122,33 @@ describe("PostReportPage — 사건 개요·최종 결정 카드", () => {
     expect(screen.getByText(/승인\/반려 이력/)).toBeInTheDocument();
     expect(screen.queryByText("1. 사건 개요와 발생시점")).not.toBeInTheDocument();
     expect(screen.queryByText("5. 최종 결정과 승인자")).not.toBeInTheDocument();
+  });
+});
+
+describe("PostReportPage — 검토한 대응안 표", () => {
+  it("4번 섹션은 JSON이 아니라 ReviewedCandidatesTable로 렌더링한다", async () => {
+    mockGetPostReport.mockResolvedValue(postReport);
+    mockGetCostAttribution.mockResolvedValue(costAttribution);
+
+    renderAt("2");
+
+    expect(await screen.findByText("검토한 대응안과 제외 사유")).toBeInTheDocument();
+    expect(screen.getByText("항공전환")).toBeInTheDocument();
+    expect(screen.getByText(/예산초과.*항공 운임이 승인 한도를 초과/)).toBeInTheDocument();
+    expect(screen.getByText(/검토 2건/)).toBeInTheDocument();
+    expect(screen.queryByText("4. 검토한 대응안과 제외 사유")).not.toBeInTheDocument();
+  });
+
+  it("4번 섹션 키가 비어 있어도 안내 문구로 렌더링한다", async () => {
+    mockGetPostReport.mockResolvedValue({
+      ...postReport,
+      sections: { ...postReport.sections, "4_검토한_대응안과_제외_사유": {} },
+    });
+    mockGetCostAttribution.mockResolvedValue(costAttribution);
+
+    renderAt("2");
+
+    expect(await screen.findByText("검토한 대응안이 없습니다.")).toBeInTheDocument();
   });
 });
 
