@@ -28,9 +28,17 @@ describe("DecisionPackagePanel — 정상 시나리오(happy path)", () => {
     render(<DecisionPackagePanel decisionPackage={samplePackage} now={new Date("2026-08-13T00:00:00Z")} />);
 
     expect(screen.getByText(/특정 대응안을 정답으로 단정하지 않습니다/)).toBeInTheDocument();
-    expect(screen.getByText("기대손실·P90·CVaR")).toBeInTheDocument();
+    expect(screen.getByText("기대손실·P90·CVaR·신뢰도")).toBeInTheDocument();
     expect(screen.getByText("실행 가능성·제외 사유")).toBeInTheDocument();
     expect(screen.getByText(/2시간 후/)).toBeInTheDocument();
+  });
+
+  it("기대손실·P90·CVaR 섹션은 JSON이 아니라 표로 렌더링한다", () => {
+    render(<DecisionPackagePanel decisionPackage={samplePackage} now={new Date("2026-08-13T00:00:00Z")} />);
+
+    // 표의 후보명 셀로 렌더링되어야 하고, 더 이상 별도의 "기대손실·P90·CVaR" 단독 라벨(구 버전)은 없다
+    expect(screen.getByText("baseline")).toBeInTheDocument();
+    expect(screen.queryByText("기대손실·P90·CVaR")).not.toBeInTheDocument();
   });
 
   it("섹션 안의 실제 값을 렌더링한다", () => {

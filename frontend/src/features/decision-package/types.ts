@@ -28,3 +28,30 @@ export const DECISION_PACKAGE_SECTIONS: { key: string; label: string }[] = [
   { key: "confidence_and_uncertainty", label: "신뢰도·불확실성" },
   { key: "ranked_candidates", label: "대응 조합 순위" },
 ];
+
+/**
+ * Phase 13 전용 타입 — package["expected_loss_p90_cvar"], package["confidence_and_uncertainty"]의
+ * 실제 형태(backend/app/services/response_optimization.py build_decision_package 확인).
+ * 둘 다 candidate id(string) 키로 묶여 있어서 후보별 표 하나로 합칠 수 있다.
+ */
+export interface ExpectedLossP90CvarEntry {
+  candidate_type: string;
+  description: string;
+  expected_loss: number | null;
+  p90: number | null;
+  cvar: number | null;
+}
+export type ExpectedLossP90CvarSection = Record<string, ExpectedLossP90CvarEntry>;
+
+export interface UncertaintyRangeApi {
+  expected_loss: number | null;
+  p90: number | null;
+  cvar: number | null;
+  p90_minus_expected_loss: number | null;
+  cvar_minus_p90: number | null;
+}
+export interface ConfidenceAndUncertaintyEntry {
+  confidence: number | null;
+  uncertainty_range: UncertaintyRangeApi;
+}
+export type ConfidenceAndUncertaintySection = Record<string, ConfidenceAndUncertaintyEntry>;
