@@ -86,6 +86,8 @@ export interface ResponseCandidate {
 }
 
 export interface ExcludedCandidate {
+  /** 원본 CandidateApi.id — React 리스트 key로 사용한다(name은 카테고리가 겹칠 수 있어 부적합). */
+  id: number;
   name: string;
   reason: string;
 }
