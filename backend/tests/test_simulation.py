@@ -482,6 +482,46 @@ def test_prompt_still_includes_krw_instruction_when_snapshot_lacks_currency_fiel
 
     assert "KRW" in prompt
     assert "원" in prompt
+
+
+# ------------------------------------------------------------------
+# Prompt construction: Korean-only sensitivity_variables/fact/inference/
+# assumption output (bug fix -- 사후보고서 §10에서 LLM이 sensitivity_variables/
+# assumption에 운영 스냅샷의 원본 snake_case 필드명과 영어 문장을 그대로 출력해,
+# 실무자가 이해할 수 없는 내부 용어가 최종 보고서에 그대로 노출됐다). No LLM call
+# and no DB access happen in these tests -- same pure string-building
+# approach as the KRW currency instruction tests above.
+# ------------------------------------------------------------------
+
+
+def test_prompt_instructs_korean_output_for_assumption_fields():
+    prompt = _build_simulation_prompt(_fake_candidate(), _fake_snapshot(_SNAPSHOT_WITH_CURRENCY_FIELDS), "노드:\n엣지:\n", [])
+
+    assert "한국어 문장" in prompt
+
+
+def test_prompt_forbids_raw_snake_case_field_names_as_output_labels():
+    prompt = _build_simulation_prompt(_fake_candidate(), _fake_snapshot(_SNAPSHOT_WITH_CURRENCY_FIELDS), "노드:\n엣지:\n", [])
+
+    assert "그대로 옮겨쓰지 마라" in prompt
+    # The instruction must reference a concrete example of the exact failure
+    # mode observed in production (customs_clearance_delay_duration_hours
+    # leaking verbatim into sensitivity_variables), not just an abstract rule.
+    assert "customs_clearance_delay_duration_hours" in prompt
+
+
+def test_prompt_korean_output_instruction_present_even_without_currency_fields():
+    """Edge case: the Korean-output instruction must not depend on the
+    snapshot containing any particular fields -- it must always be emitted,
+    same as the KRW-unit instruction above."""
+    bare_state = {
+        "inventory": {"PT-X": {"qty": 100, "unit": "ea", "hourly_consumption": 5, "safety_stock": 20}},
+        "production": {"PO-X": {"line": "L9", "status": "정상가동", "capacity_per_hour": 3}},
+    }
+
+    prompt = _build_simulation_prompt(_fake_candidate(), _fake_snapshot(bare_state), "노드:\n엣지:\n", [])
+
+    assert "한국어 문장" in prompt
     # The instruction referencing the field names is always present
     # regardless of whether this particular snapshot happens to carry them.
     assert "unit_value_krw" in prompt
