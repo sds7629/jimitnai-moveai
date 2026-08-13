@@ -26,6 +26,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
 
+from app.llm import GeminiAPIError
 from app.llm.gemini_embeddings import EMBEDDING_DIM
 from app.main import app
 from app.repositories.documents import DocumentChunkRepository, DocumentRepository
@@ -239,6 +240,57 @@ def test_unparseable_llm_response_retries_once_then_raises(db_session):
     # the overall call raised.
     baseline = ResponseCandidateRepository(db_session).baseline_for_incident(incident["id"])
     assert baseline is not None
+
+
+# ------------------------------------------------------------------
+# Extra: provider-level failures (quota exhausted, network error, etc.)
+# must surface as ResponseGenerationError, not leak as a raw
+# GeminiAPIError/500 -- found during pre-merge review when testing against
+# a real (but quota-exhausted) GEMINI_API_KEY.
+# ------------------------------------------------------------------
+
+
+class RaisingProvider:
+    """Fake LLMProvider whose generate() always raises, simulating a real
+    provider-level failure (e.g. 429 RESOURCE_EXHAUSTED)."""
+
+    def __init__(self, exc: Exception):
+        self._exc = exc
+        self.call_count = 0
+
+    def generate(self, prompt: str, *, system=None, temperature: float = 0.7) -> str:
+        self.call_count += 1
+        raise self._exc
+
+
+def test_provider_error_during_llm_call_is_wrapped_as_response_generation_error(db_session):
+    incident = _create_incident("항만 적체", "프로바이더호출실패")
+    provider = RaisingProvider(GeminiAPIError("429 RESOURCE_EXHAUSTED"))
+
+    with pytest.raises(ResponseGenerationError):
+        asyncio.run(generate_candidates(db_session, incident["id"], llm_provider=provider))
+
+    # Baseline is still produced (committed before the LLM call), same as
+    # the parse-failure case above.
+    baseline = ResponseCandidateRepository(db_session).baseline_for_incident(incident["id"])
+    assert baseline is not None
+
+
+def test_provider_error_during_rag_embedding_is_wrapped_as_response_generation_error(
+    db_session, monkeypatch
+):
+    def _raise(_text):
+        raise GeminiAPIError("429 RESOURCE_EXHAUSTED")
+
+    monkeypatch.setattr("app.rag.search.embed_text", _raise)
+    incident = _create_incident("항만 적체", "임베딩호출실패")
+    provider = ScriptedProvider([_candidates_json([])])
+
+    with pytest.raises(ResponseGenerationError):
+        asyncio.run(generate_candidates(db_session, incident["id"], llm_provider=provider))
+
+    # The LLM was never even called -- the RAG/embedding failure happens first.
+    assert provider.call_count == 0
 
 
 # ------------------------------------------------------------------
