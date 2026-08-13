@@ -99,3 +99,30 @@ export interface CausalPathSection {
   nodes: CausalPathNodeApi[];
   edges: CausalPathEdgeApi[];
 }
+
+/**
+ * Phase 16 전용 타입 — package["data_and_documents_used"] +
+ * package["fact_inference_assumption"] + package["freshness_and_coverage"]의 실제 형태
+ * (backend/app/services/response_optimization.py build_decision_package 4~6번 항목 확인).
+ * fact/inference/assumption은 LLM이 만든 자유 형식 JSONB(dict[str, Any])라 프론트도 같은
+ * 방침으로 느슨하게 타입을 잡는다.
+ */
+export interface DataAndDocumentsUsedSection {
+  operational_assumptions: string[];
+  data_version: string;
+  scenario_version: string;
+  reference_document_ids_by_candidate: Record<string, string[]>;
+}
+
+export interface FactInferenceAssumptionEntry {
+  fact: Record<string, unknown>;
+  inference: Record<string, unknown>;
+  assumption: Record<string, unknown>;
+}
+export type FactInferenceAssumptionSection = Record<string, FactInferenceAssumptionEntry>;
+
+export interface FreshnessAndCoverageSection {
+  quality_mode: string;
+  freshness_seconds: number | null;
+  coverage_ratio: number | null;
+}

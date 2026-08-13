@@ -25,8 +25,13 @@ const samplePackage: DecisionPackageApi = {
       ],
       edges: [],
     },
-    data_and_documents_used: { data_version: "v1", scenario_version: "s1" },
-    fact_inference_assumption: {},
+    data_and_documents_used: {
+      operational_assumptions: ["항만 재개방 시점 미확정"],
+      data_version: "v1",
+      scenario_version: "s1",
+      reference_document_ids_by_candidate: { "1": ["doc-a"] },
+    },
+    fact_inference_assumption: { "1": { fact: { port_status: "폐쇄" }, inference: {}, assumption: {} } },
     freshness_and_coverage: { quality_mode: "normal", freshness_seconds: 100, coverage_ratio: 1 },
     key_sensitivity_variables: {},
     feasibility_and_exclusion: {},
@@ -61,15 +66,21 @@ describe("DecisionPackagePanel — 정상 시나리오(happy path)", () => {
     expect(screen.queryByText("기대손실·P90·CVaR")).not.toBeInTheDocument();
   });
 
-  it("섹션 안의 실제 값을 렌더링한다", () => {
-    render(<DecisionPackagePanel decisionPackage={samplePackage} now={new Date("2026-08-13T00:00:00Z")} />);
-    expect(screen.getByText(/normal/)).toBeInTheDocument();
-  });
-
   it("causal_path 섹션은 JSON이 아니라 순서 리스트로 렌더링한다", () => {
     render(<DecisionPackagePanel decisionPackage={samplePackage} now={new Date("2026-08-13T00:00:00Z")} />);
     expect(screen.getByText("영향 전파 경로")).toBeInTheDocument();
     expect(screen.getByText("부산항 하역 지연")).toBeInTheDocument();
+  });
+
+  it("data_and_documents_used·fact_inference_assumption·freshness_and_coverage는 근거 패널 하나로 통합 렌더링한다", () => {
+    render(<DecisionPackagePanel decisionPackage={samplePackage} now={new Date("2026-08-13T00:00:00Z")} />);
+    expect(screen.getByText("이 판단의 근거")).toBeInTheDocument();
+    expect(screen.getByText("항만 재개방 시점 미확정")).toBeInTheDocument();
+    expect(screen.getByText("doc-a")).toBeInTheDocument();
+    expect(screen.getByText(/port_status/)).toBeInTheDocument();
+    expect(screen.queryByText("사용한 데이터·문서")).not.toBeInTheDocument();
+    expect(screen.queryByText("FACT·INFERENCE·ASSUMPTION")).not.toBeInTheDocument();
+    expect(screen.queryByText("데이터 최신성·커버리지")).not.toBeInTheDocument();
   });
 });
 
@@ -106,5 +117,22 @@ describe("DecisionPackagePanel — 경계값(빈 패키지)", () => {
       />,
     );
     expect(screen.getByText("영향 전파 경로가 없습니다.")).toBeInTheDocument();
+  });
+
+  it("data_and_documents_used·freshness_and_coverage 키가 아예 없어도(빈 객체) NaN 없이 렌더링된다", () => {
+    // 회귀 테스트 — IncidentDashboard/IncidentDetailPage 기존 fixture가
+    // freshness_and_coverage: {}처럼 quality_mode/freshness_seconds/coverage_ratio를
+    // 아예 생략해서 쓰는 경우, 필드별 기본값 처리 없이 그대로 포맷하면 "NaN%"가 나온다
+    render(
+      <DecisionPackagePanel
+        decisionPackage={{
+          ...samplePackage,
+          package: { ...samplePackage.package, data_and_documents_used: {}, freshness_and_coverage: {} },
+        }}
+        now={new Date("2026-08-13T00:00:00Z")}
+      />,
+    );
+    expect(screen.queryByText(/NaN/)).not.toBeInTheDocument();
+    expect(screen.getByText("등록된 가정이 없습니다.")).toBeInTheDocument();
   });
 });

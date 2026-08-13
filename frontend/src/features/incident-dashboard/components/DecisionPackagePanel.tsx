@@ -2,7 +2,10 @@ import { DECISION_PACKAGE_SECTIONS, type DecisionPackageApi } from "../../decisi
 import type {
   CausalPathSection,
   ConfidenceAndUncertaintySection,
+  DataAndDocumentsUsedSection,
   ExpectedLossP90CvarSection,
+  FactInferenceAssumptionSection,
+  FreshnessAndCoverageSection,
   NowVs6hVsNoActionSection,
 } from "../../decision-package/types";
 import { summarizeDeadline } from "../../decision-package/format";
@@ -10,6 +13,7 @@ import { buildExpectedLossTable } from "../../decision-package/expectedLossTable
 import { ExpectedLossTable } from "./ExpectedLossTable";
 import { NowVs6hComparison } from "./NowVs6hComparison";
 import { CausalPathList } from "./CausalPathList";
+import { EvidencePanel } from "./EvidencePanel";
 
 interface DecisionPackagePanelProps {
   decisionPackage: DecisionPackageApi;
@@ -23,10 +27,24 @@ const MIGRATED_SECTION_KEYS = new Set([
   "confidence_and_uncertainty",
   "now_vs_6h_vs_no_action",
   "causal_path",
+  "data_and_documents_used",
+  "fact_inference_assumption",
+  "freshness_and_coverage",
 ]);
 
 const EMPTY_NOW_VS_6H: NowVs6hVsNoActionSection = { no_action: null, now: null, plus_6h: null };
 const EMPTY_CAUSAL_PATH: CausalPathSection = { nodes: [], edges: [] };
+const EMPTY_DATA_AND_DOCUMENTS: DataAndDocumentsUsedSection = {
+  operational_assumptions: [],
+  data_version: "-",
+  scenario_version: "-",
+  reference_document_ids_by_candidate: {},
+};
+const EMPTY_FRESHNESS_AND_COVERAGE: FreshnessAndCoverageSection = {
+  quality_mode: "-",
+  freshness_seconds: null,
+  coverage_ratio: null,
+};
 
 /**
  * 의사결정 근거 패널 — GET /incidents/{id}/decision-package 응답을 보여준다.
@@ -51,6 +69,25 @@ export function DecisionPackagePanel({ decisionPackage, now = new Date() }: Deci
   const causalPath: CausalPathSection = {
     nodes: rawCausalPath.nodes ?? EMPTY_CAUSAL_PATH.nodes,
     edges: rawCausalPath.edges ?? EMPTY_CAUSAL_PATH.edges,
+  };
+  const rawDataAndDocuments = (decisionPackage.package.data_and_documents_used ?? {}) as Partial<DataAndDocumentsUsedSection>;
+  const dataAndDocuments: DataAndDocumentsUsedSection = {
+    operational_assumptions: rawDataAndDocuments.operational_assumptions ?? EMPTY_DATA_AND_DOCUMENTS.operational_assumptions,
+    data_version: rawDataAndDocuments.data_version ?? EMPTY_DATA_AND_DOCUMENTS.data_version,
+    scenario_version: rawDataAndDocuments.scenario_version ?? EMPTY_DATA_AND_DOCUMENTS.scenario_version,
+    reference_document_ids_by_candidate:
+      rawDataAndDocuments.reference_document_ids_by_candidate ?? EMPTY_DATA_AND_DOCUMENTS.reference_document_ids_by_candidate,
+  };
+  const factInferenceAssumption = (decisionPackage.package.fact_inference_assumption ??
+    {}) as FactInferenceAssumptionSection;
+  // freshness_and_coverage도 causal_path와 같은 이유(키 자체가 빠진 {} 형태의 fixture가
+  // 실제로 존재함)로 필드별 기본값 처리한다 — 통째로 ?? 하면 {}는 truthy라 기본값이 적용되지
+  // 않아 quality_mode/freshness_seconds/coverage_ratio가 undefined인 채로 NaN%처럼 잘못 표시된다.
+  const rawFreshnessAndCoverage = (decisionPackage.package.freshness_and_coverage ?? {}) as Partial<FreshnessAndCoverageSection>;
+  const freshnessAndCoverage: FreshnessAndCoverageSection = {
+    quality_mode: rawFreshnessAndCoverage.quality_mode ?? EMPTY_FRESHNESS_AND_COVERAGE.quality_mode,
+    freshness_seconds: rawFreshnessAndCoverage.freshness_seconds ?? EMPTY_FRESHNESS_AND_COVERAGE.freshness_seconds,
+    coverage_ratio: rawFreshnessAndCoverage.coverage_ratio ?? EMPTY_FRESHNESS_AND_COVERAGE.coverage_ratio,
   };
 
   return (
@@ -86,6 +123,15 @@ export function DecisionPackagePanel({ decisionPackage, now = new Date() }: Deci
       <div className="border-b border-[var(--border)] py-2.5">
         <div className="mb-1 text-[11.5px] font-bold text-[var(--text-secondary-strong)]">영향 전파 경로</div>
         <CausalPathList section={causalPath} />
+      </div>
+
+      <div className="border-b border-[var(--border)] py-2.5">
+        <div className="mb-1 text-[11.5px] font-bold text-[var(--text-secondary-strong)]">이 판단의 근거</div>
+        <EvidencePanel
+          dataAndDocuments={dataAndDocuments}
+          factInferenceAssumption={factInferenceAssumption}
+          freshnessAndCoverage={freshnessAndCoverage}
+        />
       </div>
 
       {DECISION_PACKAGE_SECTIONS.filter(({ key }) => !MIGRATED_SECTION_KEYS.has(key)).map(({ key, label }) => (
