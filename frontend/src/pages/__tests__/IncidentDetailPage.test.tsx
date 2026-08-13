@@ -191,6 +191,47 @@ describe("IncidentDetailPage — 정상 시나리오(happy path)", () => {
   });
 });
 
+// dag.quality_mode("normal"/"limited")와 dag.scenario_version("strike-v1" 같은 내부 슬러그+
+// 리비전)이 그대로 progressBadge에 노출되던 버그(내부 코드가 사용자 화면에 나타남)의 회귀 테스트.
+describe("IncidentDetailPage — 진행 배지(progressBadge)", () => {
+  // 배지는 IncidentContextBar의 "border-dashed" span에 렌더링된다 — 같은 화면의 다른 곳(예:
+  // SnapshotStatusBar)은 "시나리오 버전"이라는 별도 라벨을 붙여 스냅샷 버전 정보를 보여주는
+  // 의도된 표시라 이 테스트의 대상이 아니다. 배지 엘리먼트 자체만 좁게 검증한다.
+  it("quality_mode='normal'이면 한글 라벨과 최신성으로 배지를 구성하고, scenario_version 원본 슬러그는 노출하지 않는다", async () => {
+    mockAllSuccess();
+
+    renderAt("2");
+
+    const badge = await screen.findByText("정상 ㆍ 최신성 2분 전");
+    expect(badge.textContent).not.toMatch(/strike-v1/);
+    expect(badge.textContent).not.toMatch(/scenario-/);
+    expect(badge.textContent).not.toMatch(/\bnormal\b/);
+  });
+
+  it("quality_mode='limited'이면 '제한 모드' 한글 라벨을 배지에 표시한다", async () => {
+    mockAllSuccess();
+    mockGetImpactDag.mockResolvedValue({ ...dag, quality_mode: "limited" });
+
+    renderAt("2");
+
+    const badge = await screen.findByText("제한 모드 ㆍ 최신성 2분 전");
+    expect(badge.textContent).not.toMatch(/\blimited\b/);
+    expect(badge.textContent).not.toMatch(/strike-v1/);
+  });
+
+  it("알려지지 않은 quality_mode 값이 와도 페이지가 오류 없이 렌더링되고, 배지에 scenario_version 원본 슬러그는 노출되지 않는다", async () => {
+    mockAllSuccess();
+    mockGetImpactDag.mockResolvedValue({ ...dag, quality_mode: "weird_unknown_status" });
+
+    renderAt("2");
+
+    expect(await screen.findByText("항만 파업")).toBeInTheDocument();
+    const badge = await screen.findByText("weird_unknown_status ㆍ 최신성 2분 전");
+    expect(badge.textContent).not.toMatch(/strike-v1/);
+    expect(badge.textContent).not.toMatch(/scenario-/);
+  });
+});
+
 describe("IncidentDetailPage — 로딩 상태", () => {
   it("응답이 오기 전에는 로딩 문구를 표시한다", () => {
     mockListIncidents.mockReturnValue(new Promise(() => {}));
