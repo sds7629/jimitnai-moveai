@@ -33,6 +33,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
+from app.llm import LLMConfigError
 from app.main import app
 
 client = TestClient(app)
@@ -203,6 +204,25 @@ def test_simulate_endpoint_404s_for_unknown_incident():
 def test_candidates_endpoint_404s_for_unknown_incident():
     resp = client.get("/incidents/999999999/candidates")
     assert resp.status_code == 404
+
+
+def test_simulate_endpoint_503s_when_llm_not_configured(monkeypatch):
+    # LLMConfigError (e.g. GEMINI_API_KEY unset) must surface as a clean
+    # 503 with a readable detail message -- not an unhandled 500. This is
+    # a real gap the orchestrator found during pre-merge review: the API
+    # layer caught ResponseGenerationError/SimulationValidationError (bad
+    # LLM *responses*) but not LLMConfigError (LLM not *configured* at
+    # all), which are raised directly by get_llm_provider() before any
+    # response is even attempted.
+    def _raise_config_error():
+        raise LLMConfigError("GEMINI_API_KEY가 설정되지 않았습니다.")
+
+    monkeypatch.setattr("app.services.response_design.get_llm_provider", _raise_config_error)
+
+    incident = _create_incident("항만 적체", "API-LLM미설정")
+    resp = client.post(f"/incidents/{incident['id']}/simulate")
+    assert resp.status_code == 503
+    assert "GEMINI_API_KEY" in resp.json()["detail"]
 
 
 def test_simulate_endpoint_409s_for_non_eligible_incident():

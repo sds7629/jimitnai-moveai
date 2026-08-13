@@ -41,6 +41,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.llm import LLMConfigError
 from app.repositories.incidents import IncidentRepository
 from app.repositories.response_candidates import ResponseCandidateRepository
 from app.repositories.simulation_results import SimulationResultRepository
@@ -83,6 +84,8 @@ async def trigger_simulate_pipeline(incident_id: int, db: Session = Depends(get_
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ResponseGenerationError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except LLMConfigError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     validated = validate_candidates(db, incident_id)
 
@@ -90,6 +93,8 @@ async def trigger_simulate_pipeline(incident_id: int, db: Session = Depends(get_
         simulated = await simulate_candidates(db, incident_id)
     except SimulationValidationError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except LLMConfigError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     candidate_count = len(candidate_repo.for_incident(incident_id))
 
