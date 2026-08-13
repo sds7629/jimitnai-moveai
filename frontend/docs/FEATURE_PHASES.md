@@ -172,14 +172,14 @@ Docker 편입(Phase 4)까지 포함해 **Phase 1~12 전부 완료**됐다. 이�
 
 ### 대상 A — 의사결정 근거 패널 (`DecisionPackagePanel`)
 
-| 페이즈 | 묶는 섹션 | 표현 방식 |
-|---|---|---|
-| Phase 13 | `expected_loss_p90_cvar` + `confidence_and_uncertainty` | 후보별 기대손실/P90/CVaR/신뢰도/불확실성 폭을 한 표로 (후보 ID가 공통 키) |
-| Phase 14 | `now_vs_6h_vs_no_action` | 무대응/지금/6시간후 3장 비교 카드 |
-| Phase 15 | `causal_path` | 노드를 순서 리스트로(각 노드의 basis/uncertainty 포함) — Impact DAG 컴포넌트와 톤 맞춤 |
-| Phase 16 | `data_and_documents_used` + `fact_inference_assumption` + `freshness_and_coverage` | "이 판단의 근거" 패널 하나로 통합 — 가정 목록 + 참고문서 + FACT/INFERENCE/ASSUMPTION 뱃지 + freshness/coverage 뱃지 |
-| Phase 17 | `feasibility_and_exclusion` + `key_sensitivity_variables` | 후보별 실행가능성 상태 + 민감도 변수 표 |
-| Phase 18 | `ranked_candidates` + `disclaimer` | 서버가 계산한 composite score 순위 리스트(현재 대응안 후보 랭킹 패널의 정렬 기준과는 다른 알고리즘이라 별도 표시), 면책 문구는 유지 |
+| 페이즈 | 묶는 섹션 | 표현 방식 | 상태 |
+|---|---|---|---|
+| Phase 13 | `expected_loss_p90_cvar` + `confidence_and_uncertainty` | 후보별 기대손실/P90/CVaR/신뢰도/불확실성 폭을 한 표로 (후보 ID가 공통 키) | ✅ 완료 |
+| Phase 14 | `now_vs_6h_vs_no_action` | 무대응/지금/6시간후 3장 비교 카드 | ✅ 완료 |
+| Phase 15 | `causal_path` | 노드를 순서 리스트로(각 노드의 basis/uncertainty 포함) — Impact DAG 컴포넌트와 톤 맞춤 | |
+| Phase 16 | `data_and_documents_used` + `fact_inference_assumption` + `freshness_and_coverage` | "이 판단의 근거" 패널 하나로 통합 — 가정 목록 + 참고문서 + FACT/INFERENCE/ASSUMPTION 뱃지 + freshness/coverage 뱃지 | |
+| Phase 17 | `feasibility_and_exclusion` + `key_sensitivity_variables` | 후보별 실행가능성 상태 + 민감도 변수 표 | |
+| Phase 18 | `ranked_candidates` + `disclaimer` | 서버가 계산한 composite score 순위 리스트(현재 대응안 후보 랭킹 패널의 정렬 기준과는 다른 알고리즘이라 별도 표시), 면책 문구는 유지 | |
 
 ### 대상 B — 사후보고서 (`PostReportPage`)
 
