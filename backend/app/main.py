@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.approvals import router as approvals_router
 from app.api.decision_package import router as decision_package_router
+from app.api.execution_tracking import router as execution_tracking_router
 from app.api.impact_dag import router as impact_dag_router
 from app.api.incidents import router as incidents_router
 from app.api.simulate import router as simulate_router
@@ -39,6 +40,7 @@ app.include_router(simulate_router)
 app.include_router(decision_package_router)
 app.include_router(approvals_router)
 app.include_router(sop_dispatch_router)
+app.include_router(execution_tracking_router)
 app.include_router(stream_router)
 
 

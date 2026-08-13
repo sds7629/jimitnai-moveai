@@ -58,12 +58,13 @@ from app.repositories.decision_packages import DecisionPackageRepository
 from app.repositories.incidents import IncidentRepository
 from app.repositories.operational_snapshots import OperationalSnapshotRepository
 from app.services.constraint_validation import validate_candidates
-from app.services.operational_graph import IncidentNotFoundError  # re-exported for API layer convenience
+from app.services.operational_graph import ELIGIBLE_STATUS, IncidentNotFoundError, ensure_snapshot_and_dag  # noqa: F401 -- IncidentNotFoundError re-exported for API layer convenience
 from app.services.simulation import SimulationValidationError, simulate_candidates
 
 __all__ = [
     "process_approval",
     "check_deadline_overrun",
+    "handle_execution_deviation",
     "IncidentNotFoundError",
     "UnknownDecisionTypeError",
     "CLIENT_DECISION_TYPES",
@@ -451,3 +452,92 @@ def check_deadline_overrun(db: Session, incident_id: int) -> bool:
     )
 
     return True
+
+
+async def handle_execution_deviation(
+    db: Session,
+    incident_id: int,
+    deviation_reason: str,
+    llm_provider: LLMProvider | None = None,
+) -> dict:
+    """편차(계획 대비 실행 이탈) 감지 시 재평가하는 진입점 -- execution-tracking
+    웨이브(agents/execution-tracking.md)가 편차를 감지하면 이 함수 하나만
+    호출한다. "재시뮬레이션 트리거는 이 페르소나(오케스트레이션)만 발생시킨다"
+    (agents/orchestration.md) -- execution-tracking은 신호만 만들고 DAG나
+    시뮬레이션 결과를 절대 직접 갱신하지 않는다.
+
+    수행 순서 (simulation-supply-chain-tool.md §6.3):
+      1. ensure_snapshot_and_dag(force_recompute=True)로 최신 데이터 기준
+         Impact DAG를 재계산(append-only 새 snapshot/DAG 행).
+      2. _request_revision과 동일한 판단 근거로 기존 response_candidates를
+         그대로 유지한 채 validate_candidates(제약 재검증) +
+         simulate_candidates(재시뮬레이션, append-only 새 simulation_results
+         행)만 다시 돌린다 -- 완전 재생성은 이번 스코프에서도 여전히 과설계.
+      3. 이미 incidents.status=='승인'(SOP 발송 전제조건)이었다면 '처리중'으로
+         되돌린다 -- §6.3 마지막 문장("기존 승인 범위를 벗어나는 변경은 다시
+         담당자 승인을 받는다")의 반영. 아직 승인 전('유효'/'처리중')이었다면
+         그 상태를 그대로 유지한다.
+      4. approvals에는 아무 행도 추가하지 않는다 -- 편차 감지는 담당자의
+         승인/반려 결정이 아니라 시스템이 관찰한 사실이다. 대신 audit_log에
+         event_type='deviation_triggered_reevaluation'으로 사유를 기록한다.
+
+    판단 근거(스코프 결정, 코드 주석으로 남김) -- operational_graph의
+    "유효" 게이트와의 충돌: ensure_snapshot_and_dag은 incident.status==
+    ELIGIBLE_STATUS('유효')일 때만 재계산을 허용한다(중복/오탐 사건을
+    스냅샷 대상에서 빼기 위한 게이트, agents/operational-graph.md). 이 게이트는
+    incident-intake 직후의 최초 스냅샷 생성 시점을 염두에 두고 설계된 것이라,
+    "SOP가 이미 발송된 뒤 실행 편차로 재계산한다"는 이 함수의 시나리오(호출
+    시점의 status는 거의 항상 '승인' 또는 이전 편차로 되돌려진 '처리중')는
+    그 설계 당시 고려 대상이 아니었다. operational-graph 웨이브가 소유한
+    파일의 게이트 상수를 이 웨이브에서 직접 고치는 것은 책임 경계를 넘는
+    일이므로, 대신 오케스트레이션이 이미 소유하고 있는 incidents.status 전이
+    권한을 이용해 재계산 직전에만 잠깐 '유효'로 되돌렸다가 재계산 직후 3번의
+    올바른 최종 상태로 다시 전이시킨다. 이 중간 상태는 같은 함수 호출(같은 DB
+    세션) 안에서만 존재하고 이 함수가 끝나기 전에 바로 정리되므로, 그 사이
+    다른 요청이 이 incident를 관찰할 여지가 없는 FastAPI의 요청당 세션 모델
+    에서는 안전하다.
+
+    Raises IncidentNotFoundError (호출부가 404로 변환), SimulationValidationError
+    / LLMConfigError(재시뮬레이션 실패, 502/503) -- 그대로 위로 전파한다."""
+
+    incident_repo = IncidentRepository(db)
+    incident = incident_repo.get(incident_id)
+    if incident is None:
+        raise IncidentNotFoundError(f"incident {incident_id} not found")
+
+    previous_status = incident.status
+
+    if previous_status != ELIGIBLE_STATUS:
+        incident_repo.update(incident_id, status=ELIGIBLE_STATUS)
+
+    ensure_snapshot_and_dag(db, incident_id, force_recompute=True)
+    validate_candidates(db, incident_id)
+    await simulate_candidates(db, incident_id, llm_provider)
+
+    reverted_to_in_progress = previous_status == APPROVED_STATUS
+    final_status = IN_PROGRESS_STATUS if reverted_to_in_progress else previous_status
+    incident_repo.update(incident_id, status=final_status)
+
+    AuditLogRepository(db).add(
+        incident_id=incident_id,
+        event_type="deviation_triggered_reevaluation",
+        actor=ORCHESTRATION_ACTOR,
+        reason=deviation_reason,
+        payload={
+            "deviation_reason": deviation_reason,
+            "previous_status": previous_status,
+            "final_status": final_status,
+            "reverted_to_in_progress": reverted_to_in_progress,
+        },
+    )
+
+    return {
+        "incident_id": incident_id,
+        "dag_recomputed": True,
+        "revalidated": True,
+        "resimulated": True,
+        "previous_status": previous_status,
+        "final_status": final_status,
+        "reverted_to_in_progress": reverted_to_in_progress,
+        "deviation_reason": deviation_reason,
+    }
