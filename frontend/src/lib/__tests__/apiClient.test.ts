@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, apiGet, apiPatch, apiPost } from "../apiClient";
 
 describe("apiGet", () => {
@@ -93,5 +93,84 @@ describe("apiPatch", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     await expect(apiPatch("/sop/1/status", { status: "수신", actor: "김담당" })).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+// 내부 REST 경로/HTTP 메서드가 사용자에게 노출되는 에러 배너(IncidentContextBar/ApprovalPanel/
+// SopDispatchPanel/IncidentListPage/IncidentDetailPage/PostReportPage/RoiPage)에 그대로
+// 새어나가지 않는지 검증한다 — 이 화면들은 모두 catch한 error.message를 그대로 렌더링한다.
+describe("ApiError.message — 내부 라우팅 정보 노출 방지", () => {
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    consoleErrorSpy.mockRestore();
+  });
+
+  it("GET 실패 시 .message에 내부 경로나 'GET'이 포함되지 않는다", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await expect(apiGet("/incidents/3/simulate")).rejects.toSatisfy((error: unknown) => {
+      const message = (error as ApiError).message;
+      return !message.includes("/incidents/3/simulate") && !/\bGET\b/.test(message);
+    });
+  });
+
+  it(".message는 사용자에게 의미 있는 상태 코드를 여전히 담고 있다", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await expect(apiGet("/incidents/3/simulate")).rejects.toSatisfy((error: unknown) => {
+      const apiError = error as ApiError;
+      return apiError.status === 500 && apiError.message.includes("500");
+    });
+  });
+
+  it("POST/PATCH 실패 시에도 .message에 내부 경로나 HTTP 메서드가 포함되지 않는다", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await expect(apiPost("/incidents/3/simulate")).rejects.toSatisfy((error: unknown) => {
+      const message = (error as ApiError).message;
+      return !message.includes("/incidents/3/simulate") && !/\bPOST\b/.test(message);
+    });
+
+    await expect(
+      apiPatch("/sop/1/status", { status: "수신", actor: "김담당" }),
+    ).rejects.toSatisfy((error: unknown) => {
+      const message = (error as ApiError).message;
+      return !message.includes("/sop/1/status") && !/\bPATCH\b/.test(message);
+    });
+  });
+
+  it("메서드+경로 등 디버깅용 상세 정보는 console.error로는 남긴다", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    await expect(apiGet("/incidents/3/simulate")).rejects.toBeInstanceOf(ApiError);
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("GET"));
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("/incidents/3/simulate"));
   });
 });

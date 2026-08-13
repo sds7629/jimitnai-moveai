@@ -7,7 +7,7 @@ import { listIncidents } from "../features/incidents/api";
 import { getImpactDag } from "../features/impact-dag/api";
 import { layoutDagIntoColumns } from "../features/impact-dag/layout";
 import { getLatestSnapshot } from "../features/snapshot/api";
-import { summarizeSnapshot, type SnapshotSummary } from "../features/snapshot/format";
+import { formatQualityMode, summarizeSnapshot, type SnapshotSummary } from "../features/snapshot/format";
 import { listCandidates, runSimulation } from "../features/candidates/api";
 import { mapCandidatesToDashboard } from "../features/candidates/mapping";
 import type { CandidateApi } from "../features/candidates/types";
@@ -94,12 +94,17 @@ export function IncidentDetailPage() {
           return;
         }
 
+        const snapshotSummary = summarizeSnapshot(snapshot);
         setState({
           status: "success",
           incidentName: incident.type,
-          progressBadge: `${dag.quality_mode} ㆍ ${dag.scenario_version}`,
+          // quality_mode("normal"/"limited")와 scenario_version(내부 시나리오 슬러그+리비전, 예:
+          // "scenario-strike-v1")은 내부 코드일 뿐 사용자에게 그대로 보여줄 문구가 아니다.
+          // quality_mode는 한글 라벨로 번역하고, scenario_version 대신 이미 화면에 쓰는
+          // snapshot의 최신성 라벨을 붙인다 (내부 슬러그를 한글로 억지로 옮기지 않는다).
+          progressBadge: `${formatQualityMode(dag.quality_mode)} ㆍ 최신성 ${snapshotSummary.freshnessLabel}`,
           dagColumns: layoutDagIntoColumns(dag.nodes, dag.edges),
-          snapshot: summarizeSnapshot(snapshot),
+          snapshot: snapshotSummary,
           // 대응안 후보ㆍ의사결정 근거는 "실행" 버튼을 눌러야만 채워진다 — 위 클래스 주석 참고.
           candidatesApi: [],
           decisionPackage: undefined,
@@ -209,13 +214,14 @@ export function IncidentDetailPage() {
             listCandidates(incidentId),
             getDecisionPackage(incidentId),
           ]);
+          const snapshotSummary = summarizeSnapshot(snapshot);
           setState((prev) =>
             prev.status === "success"
               ? {
                   ...prev,
                   dagColumns: layoutDagIntoColumns(dag.nodes, dag.edges),
-                  snapshot: summarizeSnapshot(snapshot),
-                  progressBadge: `${dag.quality_mode} ㆍ ${dag.scenario_version}`,
+                  snapshot: snapshotSummary,
+                  progressBadge: `${formatQualityMode(dag.quality_mode)} ㆍ 최신성 ${snapshotSummary.freshnessLabel}`,
                   candidatesApi: candidates,
                   decisionPackage,
                 }
@@ -235,13 +241,14 @@ export function IncidentDetailPage() {
   // deadline_overrun을 push한다. TanStack Query 없이 지금 구조 그대로, 해당 리소스만 다시 fetch한다.
   const refetchDagAndSnapshot = useCallback(async () => {
     const [dag, snapshot] = await Promise.all([getImpactDag(incidentId), getLatestSnapshot(incidentId)]);
+    const snapshotSummary = summarizeSnapshot(snapshot);
     setState((prev) =>
       prev.status === "success"
         ? {
             ...prev,
             dagColumns: layoutDagIntoColumns(dag.nodes, dag.edges),
-            snapshot: summarizeSnapshot(snapshot),
-            progressBadge: `${dag.quality_mode} ㆍ ${dag.scenario_version}`,
+            snapshot: snapshotSummary,
+            progressBadge: `${formatQualityMode(dag.quality_mode)} ㆍ 최신성 ${snapshotSummary.freshnessLabel}`,
           }
         : prev,
     );

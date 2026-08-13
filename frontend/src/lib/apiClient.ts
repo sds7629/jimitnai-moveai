@@ -19,10 +19,23 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * 실패한 요청의 사용자 노출용 메시지를 만든다.
+ *
+ * `.message`는 IncidentContextBar/ApprovalPanel/SopDispatchPanel 등 여러 화면의 에러
+ * 배너에 그대로 렌더링되므로, HTTP 메서드나 내부 REST 경로(`GET /incidents/3` 같은)처럼
+ * 사용자에게 의미 없는 내부 라우팅 정보를 담지 않는다 — 상태 코드는 사용자도 이해할 수 있는
+ * 정보라 유지한다. 메서드+경로 등 디버깅에 필요한 상세 정보는 console.error로만 남긴다.
+ */
+function buildApiErrorMessage(method: string, path: string, status: number): string {
+  console.error(`API 요청 실패: ${method} ${path} (status ${status})`);
+  return `요청을 처리하지 못했습니다 (상태 코드: ${status})`;
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`);
   if (!response.ok) {
-    throw new ApiError(response.status, `GET ${path} 실패 (status ${response.status})`);
+    throw new ApiError(response.status, buildApiErrorMessage("GET", path, response.status));
   }
   return (await response.json()) as T;
 }
@@ -34,7 +47,7 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (!response.ok) {
-    throw new ApiError(response.status, `POST ${path} 실패 (status ${response.status})`);
+    throw new ApiError(response.status, buildApiErrorMessage("POST", path, response.status));
   }
   return (await response.json()) as T;
 }
@@ -46,7 +59,7 @@ export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    throw new ApiError(response.status, `PATCH ${path} 실패 (status ${response.status})`);
+    throw new ApiError(response.status, buildApiErrorMessage("PATCH", path, response.status));
   }
   return (await response.json()) as T;
 }
