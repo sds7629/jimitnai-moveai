@@ -40,7 +40,15 @@ export function IncidentListPage() {
       data-theme="dark"
       className="min-h-screen bg-[var(--bg-page)] px-7 py-6 text-[var(--text-primary)]"
     >
-      <h1 className="mb-5 text-[19px] font-bold">사건 목록</h1>
+      <div className="mb-5 flex items-center justify-between">
+        <h1 className="text-[19px] font-bold">사건 목록</h1>
+        <Link
+          to="/reports/roi"
+          className="rounded-md border border-[var(--border-btn)] px-3.5 py-2 text-[12.5px] font-bold text-[var(--text-body)]"
+        >
+          연간 ROI 보기
+        </Link>
+      </div>
 
       {state.status === "loading" && (
         <div className="text-[13px] text-[var(--text-secondary)]">불러오는 중...</div>

@@ -58,6 +58,14 @@ describe("IncidentListPage — 정상 시나리오(happy path)", () => {
     const link = screen.getByText("항만 적체").closest("a");
     expect(link).toHaveAttribute("href", "/incidents/1");
   });
+
+  it("연간 ROI 화면으로 이동하는 링크를 표시한다", async () => {
+    mockListIncidents.mockResolvedValue(sample);
+    renderPage();
+
+    await screen.findByText("항만 적체");
+    expect(screen.getByRole("link", { name: "연간 ROI 보기" })).toHaveAttribute("href", "/reports/roi");
+  });
 });
 
 describe("IncidentListPage — 로딩 상태", () => {
