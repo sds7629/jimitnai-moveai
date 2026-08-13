@@ -1,5 +1,6 @@
 import { DECISION_PACKAGE_SECTIONS, type DecisionPackageApi } from "../../decision-package/types";
 import type {
+  CausalPathSection,
   ConfidenceAndUncertaintySection,
   ExpectedLossP90CvarSection,
   NowVs6hVsNoActionSection,
@@ -8,6 +9,7 @@ import { summarizeDeadline } from "../../decision-package/format";
 import { buildExpectedLossTable } from "../../decision-package/expectedLossTable";
 import { ExpectedLossTable } from "./ExpectedLossTable";
 import { NowVs6hComparison } from "./NowVs6hComparison";
+import { CausalPathList } from "./CausalPathList";
 
 interface DecisionPackagePanelProps {
   decisionPackage: DecisionPackageApi;
@@ -20,9 +22,11 @@ const MIGRATED_SECTION_KEYS = new Set([
   "expected_loss_p90_cvar",
   "confidence_and_uncertainty",
   "now_vs_6h_vs_no_action",
+  "causal_path",
 ]);
 
 const EMPTY_NOW_VS_6H: NowVs6hVsNoActionSection = { no_action: null, now: null, plus_6h: null };
+const EMPTY_CAUSAL_PATH: CausalPathSection = { nodes: [], edges: [] };
 
 /**
  * 의사결정 근거 패널 — GET /incidents/{id}/decision-package 응답을 보여준다.
@@ -40,6 +44,14 @@ export function DecisionPackagePanel({ decisionPackage, now = new Date() }: Deci
     (decisionPackage.package.confidence_and_uncertainty ?? {}) as ConfidenceAndUncertaintySection,
   );
   const nowVs6h = (decisionPackage.package.now_vs_6h_vs_no_action ?? EMPTY_NOW_VS_6H) as NowVs6hVsNoActionSection;
+  // 백엔드 blob이 loosely-typed dict라 causal_path 자체는 있어도 nodes/edges 키가 빠질 수 있다
+  // (예: 목업 fixture의 causal_path: {}) — Phase 14의 undefined 버그와 같은 패턴이라 각 필드를
+  // 개별적으로 기본값 처리한다.
+  const rawCausalPath = (decisionPackage.package.causal_path ?? {}) as Partial<CausalPathSection>;
+  const causalPath: CausalPathSection = {
+    nodes: rawCausalPath.nodes ?? EMPTY_CAUSAL_PATH.nodes,
+    edges: rawCausalPath.edges ?? EMPTY_CAUSAL_PATH.edges,
+  };
 
   return (
     <div className="rounded-[10px] border border-[var(--border)] bg-[var(--panel-bg)] p-4.5">
@@ -69,6 +81,11 @@ export function DecisionPackagePanel({ decisionPackage, now = new Date() }: Deci
           지금 대응 vs 6시간 후 대응 vs 무대응
         </div>
         <NowVs6hComparison section={nowVs6h} />
+      </div>
+
+      <div className="border-b border-[var(--border)] py-2.5">
+        <div className="mb-1 text-[11.5px] font-bold text-[var(--text-secondary-strong)]">영향 전파 경로</div>
+        <CausalPathList section={causalPath} />
       </div>
 
       {DECISION_PACKAGE_SECTIONS.filter(({ key }) => !MIGRATED_SECTION_KEYS.has(key)).map(({ key, label }) => (

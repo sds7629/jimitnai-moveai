@@ -11,7 +11,20 @@ const samplePackage: DecisionPackageApi = {
   package: {
     expected_loss_p90_cvar: { "1": { candidate_type: "baseline", expected_loss: 200000000 } },
     now_vs_6h_vs_no_action: { no_action: null, now: null, plus_6h: null },
-    causal_path: { nodes: [], edges: [] },
+    causal_path: {
+      nodes: [
+        {
+          node_key: "trigger",
+          label: "부산항 하역 지연",
+          affected_target: null,
+          expected_time: null,
+          basis: null,
+          responsible_party: null,
+          uncertainty: null,
+        },
+      ],
+      edges: [],
+    },
     data_and_documents_used: { data_version: "v1", scenario_version: "s1" },
     fact_inference_assumption: {},
     freshness_and_coverage: { quality_mode: "normal", freshness_seconds: 100, coverage_ratio: 1 },
@@ -52,6 +65,12 @@ describe("DecisionPackagePanel — 정상 시나리오(happy path)", () => {
     render(<DecisionPackagePanel decisionPackage={samplePackage} now={new Date("2026-08-13T00:00:00Z")} />);
     expect(screen.getByText(/normal/)).toBeInTheDocument();
   });
+
+  it("causal_path 섹션은 JSON이 아니라 순서 리스트로 렌더링한다", () => {
+    render(<DecisionPackagePanel decisionPackage={samplePackage} now={new Date("2026-08-13T00:00:00Z")} />);
+    expect(screen.getByText("영향 전파 경로")).toBeInTheDocument();
+    expect(screen.getByText("부산항 하역 지연")).toBeInTheDocument();
+  });
 });
 
 describe("DecisionPackagePanel — 결정기한 초과", () => {
@@ -75,5 +94,17 @@ describe("DecisionPackagePanel — 경계값(빈 패키지)", () => {
       />,
     );
     expect(screen.getByText("결정기한 미산정")).toBeInTheDocument();
+  });
+
+  it("causal_path 섹션에 nodes/edges 키 자체가 없어도(빈 객체) 오류 없이 렌더링된다", () => {
+    // 회귀 테스트 — 다른 화면(IncidentDashboard/IncidentDetailPage)의 목업 fixture가
+    // causal_path: {}처럼 nodes/edges 키를 아예 생략해서 쓰는 경우와 동일한 패턴
+    render(
+      <DecisionPackagePanel
+        decisionPackage={{ ...samplePackage, package: { ...samplePackage.package, causal_path: {} } }}
+        now={new Date("2026-08-13T00:00:00Z")}
+      />,
+    );
+    expect(screen.getByText("영향 전파 경로가 없습니다.")).toBeInTheDocument();
   });
 });

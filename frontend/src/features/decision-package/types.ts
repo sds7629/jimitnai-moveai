@@ -75,3 +75,27 @@ export interface NowVs6hVsNoActionSection {
   now: PairSummaryApi | null;
   plus_6h: PairSummaryApi | null;
 }
+
+/**
+ * Phase 15 전용 타입 — package["causal_path"]의 실제 형태
+ * (backend/app/services/response_optimization.py _causal_path 확인). 최신 스냅샷의
+ * Impact DAG 노드를 순서 그대로 담고, 엣지는 노드 사이 인과 관계를 node_key로 연결한다.
+ */
+export interface CausalPathNodeApi {
+  node_key: string;
+  label: string;
+  affected_target: string | null;
+  expected_time: string | null;
+  basis: string | null;
+  responsible_party: string | null;
+  uncertainty: string | null;
+}
+export interface CausalPathEdgeApi {
+  from_node_key: string;
+  to_node_key: string;
+  basis: string | null;
+}
+export interface CausalPathSection {
+  nodes: CausalPathNodeApi[];
+  edges: CausalPathEdgeApi[];
+}
