@@ -176,10 +176,10 @@ Docker 편입(Phase 4)까지 포함해 **Phase 1~12 전부 완료**됐다. 이�
 |---|---|---|---|
 | Phase 13 | `expected_loss_p90_cvar` + `confidence_and_uncertainty` | 후보별 기대손실/P90/CVaR/신뢰도/불확실성 폭을 한 표로 (후보 ID가 공통 키) | ✅ 완료 |
 | Phase 14 | `now_vs_6h_vs_no_action` | 무대응/지금/6시간후 3장 비교 카드 | ✅ 완료 |
-| Phase 15 | `causal_path` | 노드를 순서 리스트로(각 노드의 basis/uncertainty 포함) — Impact DAG 컴포넌트와 톤 맞춤 | |
-| Phase 16 | `data_and_documents_used` + `fact_inference_assumption` + `freshness_and_coverage` | "이 판단의 근거" 패널 하나로 통합 — 가정 목록 + 참고문서 + FACT/INFERENCE/ASSUMPTION 뱃지 + freshness/coverage 뱃지 | |
-| Phase 17 | `feasibility_and_exclusion` + `key_sensitivity_variables` | 후보별 실행가능성 상태 + 민감도 변수 표 | |
-| Phase 18 | `ranked_candidates` + `disclaimer` | 서버가 계산한 composite score 순위 리스트(현재 대응안 후보 랭킹 패널의 정렬 기준과는 다른 알고리즘이라 별도 표시), 면책 문구는 유지 | |
+| Phase 15 | `causal_path` | 노드를 순서 리스트로(각 노드의 basis/uncertainty 포함) — Impact DAG 컴포넌트와 톤 맞춤 | ✅ 완료 |
+| Phase 16 | `data_and_documents_used` + `fact_inference_assumption` + `freshness_and_coverage` | "이 판단의 근거" 패널 하나로 통합 — 가정 목록 + 참고문서 + FACT/INFERENCE/ASSUMPTION 뱃지 + freshness/coverage 뱃지 | ✅ 완료 |
+| Phase 17 | `feasibility_and_exclusion` + `key_sensitivity_variables` | 후보별 실행가능성 상태 + 민감도 변수 표 | ✅ 완료 |
+| Phase 18 | `ranked_candidates` + `disclaimer` | 서버가 계산한 composite score 순위 리스트(현재 대응안 후보 랭킹 패널의 정렬 기준과는 다른 알고리즘이라 별도 표시), 면책 문구는 유지 | ✅ 완료 |
 
 ### 대상 B — 사후보고서 (`PostReportPage`)
 
@@ -194,8 +194,9 @@ Docker 편입(Phase 4)까지 포함해 **Phase 1~12 전부 완료**됐다. 이�
 
 ### 다음 액션
 
-사용자 확정: **Phase 13부터 시작**(의사결정 근거의 기대손실·신뢰도 표). Phase 13~18(대상 A) 완료
-후 Phase 19~24(대상 B)로 넘어간다.
+Phase 13~18(대상 A, 의사결정 근거 패널 10개 섹션) 전부 완료 — `DecisionPackagePanel`에는 더 이상
+raw JSON 블록이 없다. 사용자 지시로 **Phase 18까지 마치고 일시 정지**, Phase 19~24(대상 B, 사후보고서)는
+다음 지시가 있을 때 이어서 진행한다.
 
 그 외 다듬기 후보(뷰 작업과 별도, 우선순위 미정):
 - `openapi-typescript` 도입 재검토 (Phase 1에서 "엔드포인트 여러 개 붙으면 재검토"로 미뤄뒀던 지점 —
