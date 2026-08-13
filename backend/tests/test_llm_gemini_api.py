@@ -1,4 +1,4 @@
-"""llm.gemini_api.GeminiAPIProvider에 대한 테스트.
+"""app.llm.gemini_api.GeminiAPIProvider에 대한 테스트.
 
 실제 google-genai SDK/네트워크에 의존하지 않도록, 생성자에 fake client를
 직접 주입해서(`client=...`) 검증한다.
@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from llm.gemini_api import GeminiAPIError, GeminiAPIProvider
+from app.llm.gemini_api import GeminiAPIError, GeminiAPIProvider
 
 
 def _fake_client(response_text="hello", side_effect=None):

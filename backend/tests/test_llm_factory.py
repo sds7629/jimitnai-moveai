@@ -1,4 +1,4 @@
-"""llm.factory.get_llm_provider()에 대한 테스트.
+"""app.llm.factory.get_llm_provider()에 대한 테스트.
 
 get_llm_provider(env=...)에 dict를 넘겨서 실제 환경변수/.env 파일에
 영향을 주지 않고 테스트한다. GeminiAPIProvider 생성 자체는 google-genai
@@ -12,9 +12,9 @@ from unittest.mock import patch
 
 import pytest
 
-from llm.claude_cli import ClaudeCLIProvider
-from llm.factory import LLMConfigError, get_llm_provider
-from llm.gemini_api import GeminiAPIProvider
+from app.llm.claude_cli import ClaudeCLIProvider
+from app.llm.factory import LLMConfigError, get_llm_provider
+from app.llm.gemini_api import GeminiAPIProvider
 
 
 def test_explicit_gemini_api_with_key_returns_gemini_provider():
