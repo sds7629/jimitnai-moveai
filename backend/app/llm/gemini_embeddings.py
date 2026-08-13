@@ -34,7 +34,7 @@ DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001"
 EMBEDDING_DIM = 768
 
 
-def _build_client(api_key: str):
+def _build_client(api_key: str, use_vertex_ai: bool = True):
     try:
         from google import genai
     except ImportError as exc:
@@ -42,7 +42,10 @@ def _build_client(api_key: str):
             "google-genai 패키지가 설치되어 있지 않습니다. "
             "`pip install google-genai`로 설치하세요."
         ) from exc
-    return genai.Client(api_key=api_key)
+    # app/llm/gemini_api.py의 GeminiAPIProvider._build_client와 동일한 이유로
+    # vertexai=True가 기본값이다 -- 이 프로젝트의 실제 키는 Vertex AI Express
+    # Mode 키라 vertexai=False로는 403 PERMISSION_DENIED(API_KEY_SERVICE_BLOCKED)가 난다.
+    return genai.Client(api_key=api_key, vertexai=use_vertex_ai)
 
 
 def embed_text(
@@ -51,6 +54,7 @@ def embed_text(
     api_key: Optional[str] = None,
     model: str = DEFAULT_EMBEDDING_MODEL,
     client=None,
+    use_vertex_ai: Optional[bool] = None,
 ) -> list[float]:
     """텍스트 한 건을 Gemini Embedding API로 768차원 벡터로 변환한다.
 
@@ -67,18 +71,19 @@ def embed_text(
         raise GeminiAPIError("임베딩할 텍스트가 비어 있습니다.")
 
     if client is None:
-        resolved_key = api_key
-        if not resolved_key:
-            from app.core.config import settings
+        from app.core.config import settings
 
-            resolved_key = settings.gemini_api_key
+        resolved_key = api_key or settings.gemini_api_key
         if not resolved_key:
             raise GeminiAPIError(
                 "GEMINI_API_KEY가 설정되지 않았습니다. 임베딩을 생성하려면 "
                 "환경변수 GEMINI_API_KEY(.env 또는 docker-compose 환경변수)를 "
                 "설정한 뒤 다시 실행하세요."
             )
-        client = _build_client(resolved_key)
+        resolved_use_vertex_ai = (
+            use_vertex_ai if use_vertex_ai is not None else settings.gemini_use_vertex_ai
+        )
+        client = _build_client(resolved_key, resolved_use_vertex_ai)
 
     try:
         response = client.models.embed_content(

@@ -17,6 +17,12 @@ class LLMConfigError(RuntimeError):
     """LLM 프로바이더 설정 오류."""
 
 
+def _parse_bool(value: Optional[str], default: bool) -> bool:
+    if value is None or not value.strip():
+        return default
+    return value.strip().lower() not in ("false", "0", "no", "off")
+
+
 def get_llm_provider(env: Optional[Mapping[str, str]] = None) -> LLMProvider:
     """.env 설정을 기준으로 사용할 LLM 프로바이더를 결정한다.
 
@@ -54,7 +60,12 @@ def get_llm_provider(env: Optional[Mapping[str, str]] = None) -> LLMProvider:
                 "GEMINI_API_KEY가 비어 있습니다."
             )
         model = (source.get("GEMINI_MODEL") or DEFAULT_GEMINI_MODEL).strip()
-        return GeminiAPIProvider(api_key=gemini_key, model=model)
+        # 기본값 True: 이 프로젝트에 실제 발급된 키는 Vertex AI Express Mode
+        # 키라 vertexai=True가 아니면 403 PERMISSION_DENIED(API_KEY_SERVICE_BLOCKED)
+        # 로 막힌다(gemini_api.py의 _build_client 주석 참고). 일반 AI Studio 키를
+        # 쓰게 되면 GEMINI_USE_VERTEX_AI=false로 끌 수 있게 열어둔다.
+        use_vertex_ai = _parse_bool(source.get("GEMINI_USE_VERTEX_AI"), default=True)
+        return GeminiAPIProvider(api_key=gemini_key, model=model, use_vertex_ai=use_vertex_ai)
 
     cli_path = (source.get("CLAUDE_CLI_PATH") or DEFAULT_CLAUDE_CLI_PATH).strip()
     timeout = int(source.get("CLAUDE_CLI_TIMEOUT") or DEFAULT_CLAUDE_CLI_TIMEOUT)

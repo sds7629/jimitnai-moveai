@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     llm_provider: str = "gemini_api"
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-2.5-flash"
+    # 실키 테스트로 확인(2026-08-13): 이 프로젝트의 실제 키는 Vertex AI Express
+    # Mode 키라 vertexai=True로 호출해야 한다(app/llm/gemini_api.py 주석 참고).
+    # 일반 AI Studio 키로 바뀌면 .env에서 false로 끌 수 있다.
+    gemini_use_vertex_ai: bool = True
 
     # CORS origin for the (not-yet-built) frontend dev server, per
     # ARCHITECTURE.md §8.5.
