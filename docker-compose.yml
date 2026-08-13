@@ -1,0 +1,55 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-moveai}
+      POSTGRES_USER: ${POSTGRES_USER:-moveai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-moveai}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      # docker-entrypoint-initdb.d convention: files run once, in filename
+      # sort order, only on first container startup (empty data dir).
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-moveai} -d ${POSTGRES_DB:-moveai}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://moveai_app:moveai_app@db:5432/moveai}
+      APP_ENV: ${APP_ENV:-docker}
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini_api}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
+    volumes:
+      # Bind-mount source for live --reload during development.
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  adminer:
+    image: adminer
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db_data:
