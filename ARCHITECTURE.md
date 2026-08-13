@@ -168,7 +168,7 @@ jimitnai-moveai/
 | `APP_ENV` | `local` \| `docker` | 실행 환경 구분 |
 | `LLM_PROVIDER` | `gemini_api` \| `claude_cli` | `feature/llm-provider`에서 정의한 LLM 백엔드 선택 |
 | `GEMINI_API_KEY` | (비움) | Gemini API 키 |
-| `GEMINI_MODEL` | `gemini-2.0-flash` | 사용할 Gemini 모델 |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | 사용할 Gemini 모델 (2026-08-13 실키 테스트에서 `gemini-2.0-flash`가 더 이상 제공되지 않는 것을 확인해 교체) |
 | `VITE_API_BASE_URL` | `http://localhost:8000` | 프론트엔드(브라우저)가 호출할 백엔드 주소 |
 
 비밀값(`GEMINI_API_KEY` 등)은 이미지나 compose 파일에 하드코딩하지 않고 `.env` 파일(커밋 제외, `.env.example`만 커밋)로만 주입한다.

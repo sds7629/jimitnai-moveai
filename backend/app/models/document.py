@@ -8,7 +8,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db import Base
 
 # Must match the `vector(768)` column dimension declared in
-# db/init/002-schema.sql (sized for Gemini's text-embedding-004).
+# db/init/002-schema.sql. Gemini's embedding model (gemini-embedding-001,
+# app/llm/gemini_embeddings.py) defaults to a larger dimension, so the
+# embedding call explicitly requests output_dimensionality=768 to match.
 EMBEDDING_DIM = 768
 
 
