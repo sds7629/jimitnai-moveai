@@ -16,6 +16,7 @@ import type { DecisionPackageApi } from "../features/decision-package/types";
 import { submitApproval } from "../features/approvals/api";
 import { APPROVAL_ACTION_TO_DECISION_TYPE } from "../features/approvals/types";
 import type { ApprovalAction } from "../features/incident-dashboard/types";
+import { useIncidentStream } from "../features/stream/useIncidentStream";
 
 type LoadState =
   | { status: "loading" }
@@ -54,6 +55,7 @@ export function IncidentDetailPage() {
   const [rerunError, setRerunError] = useState<string | undefined>(undefined);
   const [isSubmittingApproval, setIsSubmittingApproval] = useState(false);
   const [approvalError, setApprovalError] = useState<string | undefined>(undefined);
+  const [deadlineOverrunNotice, setDeadlineOverrunNotice] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -145,6 +147,33 @@ export function IncidentDetailPage() {
     [incidentId],
   );
 
+  // GET /incidents/{id}/stream (SSE) — 서버가 2~3초 간격으로 dag_updated/decision_package_updated/
+  // deadline_overrun을 push한다. TanStack Query 없이 지금 구조 그대로, 해당 리소스만 다시 fetch한다.
+  const refetchDagAndSnapshot = useCallback(async () => {
+    const [dag, snapshot] = await Promise.all([getImpactDag(incidentId), getLatestSnapshot(incidentId)]);
+    setState((prev) =>
+      prev.status === "success"
+        ? {
+            ...prev,
+            dagColumns: layoutDagIntoColumns(dag.nodes, dag.edges),
+            snapshot: summarizeSnapshot(snapshot),
+            progressBadge: `${dag.quality_mode} ㆍ ${dag.scenario_version}`,
+          }
+        : prev,
+    );
+  }, [incidentId]);
+
+  const refetchDecisionPackage = useCallback(async () => {
+    const decisionPackage = await getDecisionPackage(incidentId);
+    setState((prev) => (prev.status === "success" ? { ...prev, decisionPackage } : prev));
+  }, [incidentId]);
+
+  useIncidentStream(incidentId, {
+    onDagUpdated: () => void refetchDagAndSnapshot(),
+    onDecisionPackageUpdated: () => void refetchDecisionPackage(),
+    onDeadlineOverrun: () => setDeadlineOverrunNotice(true),
+  });
+
   if (state.status === "loading") {
     return (
       <div data-theme="dark" className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-secondary)]">
@@ -192,6 +221,7 @@ export function IncidentDetailPage() {
       isSubmittingApproval={isSubmittingApproval}
       approvalError={approvalError}
       onApprovalSubmit={handleApprovalSubmit}
+      deadlineOverrunNotice={deadlineOverrunNotice}
     />
   );
 }

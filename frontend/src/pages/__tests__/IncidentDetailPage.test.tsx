@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { IncidentDetailPage } from "../IncidentDetailPage";
@@ -9,11 +9,13 @@ import { getLatestSnapshot } from "../../features/snapshot/api";
 import { listCandidates, runSimulation } from "../../features/candidates/api";
 import { getDecisionPackage } from "../../features/decision-package/api";
 import { submitApproval } from "../../features/approvals/api";
+import { useIncidentStream } from "../../features/stream/useIncidentStream";
 import type { IncidentListItem } from "../../features/incidents/types";
 import type { ImpactDagApiResponse } from "../../features/impact-dag/types";
 import type { OperationalSnapshotApi } from "../../features/snapshot/types";
 import type { CandidateApi, CandidatesListResponse } from "../../features/candidates/types";
 import type { DecisionPackageApi } from "../../features/decision-package/types";
+import type { IncidentStreamHandlers } from "../../features/stream/useIncidentStream";
 
 vi.mock("../../features/incidents/api");
 vi.mock("../../features/impact-dag/api");
@@ -21,6 +23,7 @@ vi.mock("../../features/snapshot/api");
 vi.mock("../../features/candidates/api");
 vi.mock("../../features/decision-package/api");
 vi.mock("../../features/approvals/api");
+vi.mock("../../features/stream/useIncidentStream");
 const mockListIncidents = vi.mocked(listIncidents);
 const mockGetImpactDag = vi.mocked(getImpactDag);
 const mockGetLatestSnapshot = vi.mocked(getLatestSnapshot);
@@ -28,6 +31,15 @@ const mockListCandidates = vi.mocked(listCandidates);
 const mockRunSimulation = vi.mocked(runSimulation);
 const mockGetDecisionPackage = vi.mocked(getDecisionPackage);
 const mockSubmitApproval = vi.mocked(submitApproval);
+const mockUseIncidentStream = vi.mocked(useIncidentStream);
+
+/** useIncidentStream(incidentId, handlers) 호출에 넘겨진 handlers를 꺼내는 헬퍼 */
+function getStreamHandlers(): IncidentStreamHandlers {
+  const calls = mockUseIncidentStream.mock.calls;
+  const call = calls[calls.length - 1];
+  if (!call) throw new Error("useIncidentStream이 호출되지 않았습니다");
+  return call[1];
+}
 
 const incidents: IncidentListItem[] = [
   {
@@ -303,5 +315,63 @@ describe("IncidentDetailPage — 담당자 승인", () => {
 
     expect(await screen.findByText(/제출 실패/)).toBeInTheDocument();
     expect(screen.getByText("안전재고 사전 당김")).toBeInTheDocument();
+  });
+});
+
+describe("IncidentDetailPage — SSE 실시간 갱신", () => {
+  it("useIncidentStream을 현재 사건 ID로 구독한다", async () => {
+    mockAllSuccess();
+    renderAt("2");
+    await screen.findByText("안전재고 사전 당김");
+
+    expect(mockUseIncidentStream).toHaveBeenCalledWith(2, expect.any(Object));
+  });
+
+  it("dag_updated 이벤트가 오면 DAG·스냅샷을 다시 불러온다", async () => {
+    mockAllSuccess();
+    renderAt("2");
+    await screen.findByText("항만/운송 노동 파업");
+
+    mockGetImpactDag.mockResolvedValue({
+      ...dag,
+      nodes: [{ ...dag.nodes[0], label: "갱신된 노드" }],
+    });
+
+    await act(async () => {
+      getStreamHandlers().onDagUpdated?.();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(await screen.findByText("갱신된 노드")).toBeInTheDocument();
+  });
+
+  it("decision_package_updated 이벤트가 오면 의사결정 근거를 다시 불러온다", async () => {
+    mockAllSuccess();
+    renderAt("2");
+    await screen.findByText("이 패키지는 대응안의 순위와 근거를 제공할 뿐입니다.");
+
+    mockGetDecisionPackage.mockResolvedValue({
+      ...decisionPackage,
+      package: { ...decisionPackage.package, disclaimer: "갱신된 면책 문구" },
+    });
+
+    await act(async () => {
+      getStreamHandlers().onDecisionPackageUpdated?.();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(await screen.findByText("갱신된 면책 문구")).toBeInTheDocument();
+  });
+
+  it("deadline_overrun 이벤트가 오면 경고 배너를 표시한다", async () => {
+    mockAllSuccess();
+    renderAt("2");
+    await screen.findByText("안전재고 사전 당김");
+
+    act(() => {
+      getStreamHandlers().onDeadlineOverrun?.();
+    });
+
+    expect(await screen.findByText(/결정기한이 초과되어/)).toBeInTheDocument();
   });
 });

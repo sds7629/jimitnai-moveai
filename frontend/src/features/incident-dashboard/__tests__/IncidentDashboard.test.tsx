@@ -164,6 +164,18 @@ describe("IncidentDashboard — 의사결정 근거 패널", () => {
   });
 });
 
+describe("IncidentDashboard — 결정기한 초과 배너 (SSE deadline_overrun)", () => {
+  it("deadlineOverrunNotice가 true면 경고 배너를 표시한다", () => {
+    render(<IncidentDashboard data={strikeScenarioMock} deadlineOverrunNotice />);
+    expect(screen.getByText(/결정기한이 초과되어/)).toBeInTheDocument();
+  });
+
+  it("deadlineOverrunNotice가 없으면 배너를 표시하지 않는다", () => {
+    render(<IncidentDashboard data={strikeScenarioMock} />);
+    expect(screen.queryByText(/결정기한이 초과되어/)).not.toBeInTheDocument();
+  });
+});
+
 describe("IncidentDashboard — 테마 토글", () => {
   it("기본은 다크 테마이고, 우상단 토글 버튼을 클릭하면 라이트로 바뀐다", async () => {
     const user = userEvent.setup();

@@ -27,6 +27,8 @@ export interface IncidentDashboardProps {
   /** POST /approvals가 진행 중일 때 승인 액션 버튼들을 잠근다 (Phase 7) */
   isSubmittingApproval?: boolean;
   approvalError?: string;
+  /** SSE deadline_overrun 이벤트 수신 시 true — 결정기한 초과 경고 배너 표시 (Phase 8) */
+  deadlineOverrunNotice?: boolean;
   onRerun?: () => void;
   onApprovalSubmit?: (action: ApprovalAction, reason: string, approver: string) => void;
 }
@@ -51,6 +53,7 @@ export function IncidentDashboard({
   rerunError,
   isSubmittingApproval = false,
   approvalError,
+  deadlineOverrunNotice = false,
   onRerun,
   onApprovalSubmit,
 }: IncidentDashboardProps) {
@@ -64,6 +67,11 @@ export function IncidentDashboard({
       className="flex min-h-screen flex-col bg-[var(--bg-page)] text-[var(--text-primary)]"
     >
       <Header aiStatus={aiStatus} theme={theme} onToggleTheme={toggleTheme} />
+      {deadlineOverrunNotice && (
+        <div className="border-b border-[var(--red-border)] bg-[var(--red-chip-bg)] px-7 py-2 text-[11.5px] font-semibold text-[var(--red)]">
+          ⚠ 결정기한이 초과되어 상위 책임자에게 에스컬레이션이 기록되었습니다.
+        </div>
+      )}
       <IncidentContextBar
         incident={data.incident}
         onRerun={onRerun}

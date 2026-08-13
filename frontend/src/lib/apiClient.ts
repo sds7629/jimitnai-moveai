@@ -6,7 +6,8 @@
  * 엔드포인트가 여러 개 붙기 시작하면(Phase 2~3 완료 후) 도입을 재검토한다.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+/** SSE 훅(useIncidentStream)처럼 fetch가 아닌 방식으로 직접 URL을 만들어야 하는 곳에서도 쓸 수 있게 export한다 */
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 export class ApiError extends Error {
   constructor(
