@@ -33,8 +33,8 @@ GRANT USAGE ON SCHEMA public TO moveai_app;
 -- never granted (REVOKE is redundant with a plain GRANT statement, but is
 -- issued explicitly so the intent is unmistakable to anyone reading this
 -- file, and so re-running it after a future accidental grant fixes things).
-GRANT SELECT, INSERT ON audit_log, operational_snapshots, simulation_results, approvals TO moveai_app;
-REVOKE UPDATE, DELETE ON audit_log, operational_snapshots, simulation_results, approvals FROM moveai_app;
+GRANT SELECT, INSERT ON audit_log, operational_snapshots, simulation_results, approvals, candidate_reviews TO moveai_app;
+REVOKE UPDATE, DELETE ON audit_log, operational_snapshots, simulation_results, approvals, candidate_reviews FROM moveai_app;
 
 -- Mutable tables: legitimate in-place field updates happen here
 -- (incident status transitions, candidate validation_status, document

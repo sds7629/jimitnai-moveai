@@ -34,8 +34,11 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.impact_dag import ImpactDagEdge, ImpactDagNode
+from app.repositories.candidate_reviews import CandidateReviewRepository
 from app.repositories.decision_packages import DecisionPackageRepository
 from app.repositories.response_candidates import ResponseCandidateRepository
+from app.repositories.simulation_results import SimulationResultRepository
+from app.services.candidate_review import review_candidate
 from app.services.constraint_validation import validate_candidates
 from app.services.operational_graph import IncidentNotFoundError
 from app.services.response_design import generate_candidates
@@ -50,6 +53,40 @@ client = TestClient(app)
 _RUN_ID = uuid.uuid4().hex[:8]
 
 
+class _FakeReviewProvider:
+    """Fake for stage 4 (다중 관점 교차검증, app/services/candidate_review.py)."""
+
+    def generate(self, prompt, *, system=None, temperature=0.7):
+        return json.dumps({"concern_level": "low", "comment": "자동화된 교차검증 코멘트", "flags": []})
+
+
+_LENS_MARKERS = {
+    "cost": "비용(cost) 관점",
+    "feasibility": "실행가능성(feasibility) 관점",
+    "risk": "리스크(risk) 관점",
+}
+
+
+class ScriptedReviewProvider:
+    """Fake review-stage provider whose concern_level per lens is
+    configurable -- used to prove a 'high' concern from just one lens
+    actually moves ranking (test 6 below)."""
+
+    def __init__(self, concern_by_lens: dict[str, str] | None = None):
+        self._concern_by_lens = concern_by_lens or {}
+
+    def generate(self, prompt, *, system=None, temperature=0.7):
+        lens = next(lens for lens, marker in _LENS_MARKERS.items() if marker in prompt)
+        concern = self._concern_by_lens.get(lens, "low")
+        return json.dumps(
+            {
+                "concern_level": concern,
+                "comment": f"{lens} 관점 검토 코멘트",
+                "flags": [f"{lens}-flag"] if concern != "low" else [],
+            }
+        )
+
+
 @pytest.fixture(autouse=True)
 def _fake_llm_and_embeddings(monkeypatch):
     monkeypatch.setattr("app.rag.search.embed_text", lambda _text: [0.0] * 768)
@@ -57,6 +94,7 @@ def _fake_llm_and_embeddings(monkeypatch):
         "app.services.response_design.get_llm_provider", lambda: _FakeCandidateProvider()
     )
     monkeypatch.setattr("app.services.simulation.get_llm_provider", lambda: _FakeSimProvider())
+    monkeypatch.setattr("app.services.candidate_review.get_llm_provider", lambda: _FakeReviewProvider())
 
 
 class _FakeCandidateProvider:
@@ -434,3 +472,134 @@ def test_decision_package_endpoint_404s_for_unknown_incident():
 def test_build_decision_package_raises_not_found_for_unknown_incident(db_session):
     with pytest.raises(IncidentNotFoundError):
         build_decision_package(db_session, 999999999)
+
+
+# ------------------------------------------------------------------
+# 6. A "high" concern review produces a measurable ranking penalty
+# ------------------------------------------------------------------
+
+
+def test_high_concern_review_produces_measurable_ranking_penalty(db_session):
+    """A candidate whose risk lens comes back 'high' must rank worse (higher
+    composite_score, relative to its own risk_score) than an otherwise
+    identical candidate with no review concerns -- proving cross-review
+    concerns actually move the ranking, not just get recorded for display."""
+
+    incident = _create_incident("항만 적체", "고위험리뷰패널티")
+    asyncio.run(generate_candidates(db_session, incident["id"]))
+    validate_candidates(db_session, incident["id"])
+    asyncio.run(simulate_candidates(db_session, incident["id"]))
+
+    candidate_repo = ResponseCandidateRepository(db_session)
+    sim_repo = SimulationResultRepository(db_session)
+    non_baseline = next(c for c in candidate_repo.for_incident(incident["id"]) if c.candidate_type != "baseline")
+    sim = sim_repo.latest_for_candidate(non_baseline.id)
+    assert sim is not None
+
+    # Baseline ranking with no reviews at all -- review_penalty must be 0.
+    package_before = build_decision_package(db_session, incident["id"])
+    ranked_before = package_before.package["ranked_candidates"]["ranked"]
+    entry_before = next(item for item in ranked_before if item["candidate_id"] == non_baseline.id)
+    assert entry_before["review_penalty"] == 0.0
+
+    # Now review it with a 'high' risk-lens concern (cost/feasibility stay low).
+    asyncio.run(
+        review_candidate(
+            db_session, non_baseline, sim, llm_provider=ScriptedReviewProvider({"risk": "high"})
+        )
+    )
+
+    package_after = build_decision_package(db_session, incident["id"])
+    ranked_after = package_after.package["ranked_candidates"]["ranked"]
+    entry_after = next(item for item in ranked_after if item["candidate_id"] == non_baseline.id)
+
+    assert entry_after["review_penalty"] > 0.0
+    assert entry_after["review_penalty"] == 0.5  # 'high' concern weight (REVIEW_CONCERN_PENALTY_WEIGHTS)
+    assert entry_after["composite_score"] > entry_before["composite_score"]
+    # composite_score must exceed the raw risk_score once a 'high' concern is factored in.
+    assert entry_after["composite_score"] > entry_after["risk_score"]
+
+    # The review itself is exposed verbatim in cross_perspective_reviews for audit.
+    cross_section = package_after.package["cross_perspective_reviews"]["by_candidate"][str(non_baseline.id)]
+    assert cross_section["reviews"]["risk"]["concern_level"] == "high"
+    assert cross_section["reviews"]["risk"]["flags"] == ["risk-flag"]
+    assert cross_section["review_penalty"] == 0.5
+
+    # No text anywhere asserts a definitive verdict.
+    assert "정답으로 단정하지 않습니다" in package_after.package["disclaimer"]
+    assert "정답이라고 단정하지" in package_after.package["cross_perspective_reviews"]["note"]
+
+
+# ------------------------------------------------------------------
+# 7. Missing reviews don't break decision package generation
+# ------------------------------------------------------------------
+
+
+def test_decision_package_generation_survives_missing_reviews(db_session):
+    """An incident that went through simulate but never through the review
+    stage (pre-existing incidents, or the review stage simply hasn't run
+    yet) must still get a full decision package -- cross_perspective_reviews
+    present but empty per candidate, review_penalty=0 everywhere, and
+    ranking behaving exactly as if the review feature didn't exist."""
+
+    incident = _create_incident("항만 적체", "리뷰없음")
+    asyncio.run(generate_candidates(db_session, incident["id"]))
+    validate_candidates(db_session, incident["id"])
+    asyncio.run(simulate_candidates(db_session, incident["id"]))
+
+    # Deliberately never call review_candidate/review_candidates_for_incident.
+    assert CandidateReviewRepository(db_session).for_incident(incident["id"]) == []
+
+    package_obj = build_decision_package(db_session, incident["id"])
+    package = package_obj.package
+
+    assert "cross_perspective_reviews" in package
+    cross = package["cross_perspective_reviews"]
+    assert cross["by_candidate"]  # present (one entry per candidate)
+    for entry in cross["by_candidate"].values():
+        assert entry["reviews"] == {}
+        assert entry["review_penalty"] == 0.0
+
+    for item in package["ranked_candidates"]["ranked"]:
+        assert item["review_penalty"] == 0.0
+
+
+# ------------------------------------------------------------------
+# 8. A new review after caching triggers recomputation (no stale cache)
+# ------------------------------------------------------------------
+
+
+def test_decision_package_endpoint_recomputes_after_new_review(db_session):
+    incident = _create_incident("항만 적체", "리뷰재계산트리거")
+
+    resp = client.post(f"/incidents/{incident['id']}/simulate")
+    assert resp.status_code == 200, resp.text
+
+    first = client.get(f"/incidents/{incident['id']}/decision-package").json()
+    # Reusing the cached package -- no new review/simulation happened yet.
+    cached_again = client.get(f"/incidents/{incident['id']}/decision-package").json()
+    assert cached_again["id"] == first["id"]
+
+    candidate_repo = ResponseCandidateRepository(db_session)
+    sim_repo = SimulationResultRepository(db_session)
+    non_baseline = next(c for c in candidate_repo.for_incident(incident["id"]) if c.candidate_type != "baseline")
+    sim = sim_repo.latest_for_candidate(non_baseline.id)
+    assert sim is not None
+
+    # A brand-new review (re-review of an already-reviewed candidate, from
+    # /simulate's stage 4) is appended directly via the service, independent
+    # of the endpoint -- this is exactly the append-only event the GET
+    # endpoint's cache-freshness check must react to.
+    asyncio.run(
+        review_candidate(db_session, non_baseline, sim, llm_provider=ScriptedReviewProvider({"cost": "high"}))
+    )
+
+    second = client.get(f"/incidents/{incident['id']}/decision-package").json()
+    assert second["id"] != first["id"]  # must not keep serving the now-stale package
+
+    package_repo = DecisionPackageRepository(db_session)
+    all_rows = [p for p in [package_repo.get(first["id"]), package_repo.get(second["id"])] if p is not None]
+    assert len(all_rows) == 2  # both rows still queryable -- append-only, old one untouched
+
+    cross = second["package"]["cross_perspective_reviews"]["by_candidate"][str(non_baseline.id)]
+    assert cross["reviews"]["cost"]["concern_level"] == "high"

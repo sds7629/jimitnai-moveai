@@ -64,10 +64,18 @@ class CandidatesListResponse(BaseModel):
 class SimulatePipelineResponse(BaseModel):
     """POST /incidents/{id}/simulate response. `reused_existing_candidates`
     documents which re-run policy branch was taken (see
-    app/api/simulate.py module docstring for the reasoning)."""
+    app/api/simulate.py module docstring for the reasoning).
+
+    `reviewed_count` is stage 4's (다중 관점 교차검증, app/services/
+    candidate_review.py) output size: the total number of `candidate_reviews`
+    rows appended this call -- 3 rows (cost/feasibility/risk) per candidate
+    that had a simulation result, mirroring how `simulated_count` is the
+    total number of `simulation_results` rows appended by stage 3 rather
+    than a count of distinct candidates."""
 
     incident_id: int
     reused_existing_candidates: bool
     candidate_count: int
     validated_count: int
     simulated_count: int
+    reviewed_count: int

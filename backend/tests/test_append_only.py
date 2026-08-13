@@ -13,6 +13,7 @@ from sqlalchemy.exc import DBAPIError
 
 from app.repositories.approvals import ApprovalRepository
 from app.repositories.audit_log import AuditLogRepository
+from app.repositories.candidate_reviews import CandidateReviewRepository
 from app.repositories.incidents import IncidentRepository
 from app.repositories.operational_snapshots import OperationalSnapshotRepository
 from app.repositories.simulation_results import SimulationResultRepository
@@ -22,6 +23,7 @@ APPEND_ONLY_REPOS = [
     SimulationResultRepository,
     ApprovalRepository,
     AuditLogRepository,
+    CandidateReviewRepository,
 ]
 
 
@@ -53,6 +55,11 @@ def test_db_role_cannot_update_simulation_results(raw_conn):
 def test_db_role_cannot_update_approvals(raw_conn):
     with pytest.raises(DBAPIError):
         raw_conn.execute(text("UPDATE approvals SET reason = 'tampered'"))
+
+
+def test_db_role_cannot_update_candidate_reviews(raw_conn):
+    with pytest.raises(DBAPIError):
+        raw_conn.execute(text("UPDATE candidate_reviews SET concern_level = 'low'"))
 
 
 def test_db_role_can_still_update_mutable_table_incidents(raw_conn, seeded_incident_id):

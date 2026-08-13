@@ -65,11 +65,22 @@ class _FakeSimProvider:
         )
 
 
+class _FakeReviewProvider:
+    """Fake for stage 4 (다중 관점 교차검증, app/services/candidate_review.py)
+    -- this test file doesn't exercise review content, just needs
+    POST /incidents/{id}/simulate's new stage 4 to succeed without a real
+    LLM call."""
+
+    def generate(self, prompt, *, system=None, temperature=0.7):
+        return json.dumps({"concern_level": "low", "comment": "자동화된 교차검증 코멘트", "flags": []})
+
+
 @pytest.fixture(autouse=True)
 def _fake_llm_and_embeddings(monkeypatch):
     monkeypatch.setattr("app.rag.search.embed_text", lambda _text: [0.0] * 768)
     monkeypatch.setattr("app.services.response_design.get_llm_provider", lambda: _FakeCandidateProvider())
     monkeypatch.setattr("app.services.simulation.get_llm_provider", lambda: _FakeSimProvider())
+    monkeypatch.setattr("app.services.candidate_review.get_llm_provider", lambda: _FakeReviewProvider())
 
 
 def _loc(base: str) -> str:
