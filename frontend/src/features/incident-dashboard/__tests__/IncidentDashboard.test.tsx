@@ -48,19 +48,19 @@ describe("IncidentDashboard — prop 기반 상태 분기", () => {
 });
 
 describe("IncidentDashboard — 인터랙션", () => {
-  it("근거 상세가 있는 DAG 노드를 클릭하면 FACT/INFERENCE 뱃지 패널이 접힌다/펼쳐진다", async () => {
+  it("근거 상세가 있는 DAG 노드를 클릭하면 불확실성/근거 패널이 접힌다/펼쳐진다", async () => {
     const user = userEvent.setup();
     render(<IncidentDashboard data={strikeScenarioMock} />);
 
     // 기본값은 펼쳐진 상태
-    expect(screen.getByText("FACT")).toBeInTheDocument();
+    expect(screen.getByText(/불확실성: medium/)).toBeInTheDocument();
 
     const dagNode = screen.getByText("PCTC 해상운송 부산→유럽").closest("div")!;
     await user.click(dagNode);
-    expect(screen.queryByText("FACT")).not.toBeInTheDocument();
+    expect(screen.queryByText(/불확실성: medium/)).not.toBeInTheDocument();
 
     await user.click(dagNode);
-    expect(screen.getByText("FACT")).toBeInTheDocument();
+    expect(screen.getByText(/불확실성: medium/)).toBeInTheDocument();
   });
 
   it("'다시 실행' 버튼 클릭 시 onRerun 콜백이 호출된다", async () => {

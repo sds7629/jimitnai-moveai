@@ -17,7 +17,11 @@ export type AiStatus = "live" | "cache_fallback" | "degraded";
  */
 export type RankingMode = "individual" | "cumulative";
 
-/** Impact DAG 노드의 도메인 엔티티 종류 */
+/**
+ * Impact DAG 노드의 도메인 엔티티 종류.
+ * frontend/docs/FEATURE_PHASES.md Phase 2: 실제 백엔드 응답(impact_dag_nodes)에는 이 필드가 없다 —
+ * 백엔드가 나중에 추가하면 다시 채워 넣을 수 있도록 optional로만 남겨둔다.
+ */
 export type DagEntityType =
   | "port"
   | "part"
@@ -27,16 +31,24 @@ export type DagEntityType =
 
 export type EvidenceTag = "FACT" | "INFERENCE" | "ASSUMPTION";
 
-/** 노드 클릭 시 펼쳐지는 근거·불확실성 상세 */
+/**
+ * 노드 클릭 시 펼쳐지는 근거 상세.
+ * backend/app/schemas/impact_dag.py의 ImpactDagNodeRead 필드를 그대로 사용한다 (Phase 2에서
+ * FACT/INFERENCE 뱃지·확신도% 같은 와이어프레임 전용 필드를 실제 값으로 교체).
+ */
 export interface ImpactDagNodeDetail {
-  confidencePercent: number;
-  evidenceTags: EvidenceTag[];
-  evidenceText: string;
+  basis: string | null;
+  uncertainty: string | null;
+  responsibleParty: string | null;
+  affectedTarget: string | null;
+  /** ISO 문자열. 렌더링 시점에 포맷한다. */
+  expectedTime: string | null;
 }
 
 export interface ImpactDagNode {
   id: string;
-  entityType: DagEntityType;
+  /** 실제 API에는 아직 없는 필드 — 있으면 라벨을 표시하고, 없으면 표시하지 않는다 */
+  entityType?: DagEntityType;
   label: string;
   /** 트리거(루트) 노드는 중립 스타일로 표시하고 지표/점 표시를 하지 않는다 */
   isTrigger?: boolean;
