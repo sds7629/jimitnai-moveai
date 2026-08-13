@@ -4,6 +4,9 @@ import type { IncidentSummary } from "../types";
 interface IncidentContextBarProps {
   incident: IncidentSummary;
   isRerunning?: boolean;
+  /** 대응안 후보ㆍ의사결정 근거가 이미 한 번이라도 채워졌으면 true — 버튼 라벨을 "실행"/"다시 실행"으로
+   * 가른다. 마운트 시에는 아직 실행 전이라 candidatesApi/decisionPackage가 비어있으므로 false. */
+  hasResults?: boolean;
   /** POST /simulate가 실패했을 때 표시할 메시지 — 기존 화면 데이터는 그대로 유지한 채 알림만 띄운다 */
   rerunError?: string;
   /** 없으면 링크를 렌더링하지 않는다 (Phase 11 이전 호출부와의 호환) */
@@ -12,17 +15,21 @@ interface IncidentContextBarProps {
 }
 
 /**
- * 사건 컨텍스트 바: 감지 뱃지, 사건명, 진행 배지, 사건 원문 입력창, 재실행 버튼, 사후보고서 링크.
- * "다시 실행"은 POST /incidents/{id}/simulate 재호출에 매핑된다 (Phase 5) — LLM 호출이 포함돼
- * 몇 초 걸릴 수 있어서 isRerunning 동안 버튼을 비활성화하고 진행 중 문구를 보여준다.
+ * 사건 컨텍스트 바: 감지 뱃지, 사건명, 진행 배지, 사건 원문 입력창, 실행/재실행 버튼, 사후보고서 링크.
+ * 버튼은 POST /incidents/{id}/simulate 호출에 매핑된다 (Phase 5) — LLM 호출이 포함돼 몇 초 걸릴 수
+ * 있어서 isRerunning 동안 버튼을 비활성화하고 진행 중 문구를 보여준다. 라벨은 hasResults가 false면
+ * "실행"(아직 한 번도 실행 안 함), true면 "다시 실행"(이미 결과가 채워진 적 있음)이다.
  */
 export function IncidentContextBar({
   incident,
   isRerunning = false,
+  hasResults = false,
   rerunError,
   postReportHref,
   onRerun,
 }: IncidentContextBarProps) {
+  const buttonLabel = isRerunning ? "실행 중..." : hasResults ? "다시 실행" : "실행";
+
   return (
     <div className="flex flex-col gap-1.5 border-b border-[var(--border)] px-7 py-3.5">
       <div className="flex items-center gap-3.5">
@@ -55,7 +62,7 @@ export function IncidentContextBar({
           disabled={isRerunning}
           className="rounded-md bg-[var(--blue)] px-4.5 py-2.5 text-[13px] font-bold text-[var(--blue-text-on)] disabled:opacity-60"
         >
-          {isRerunning ? "실행 중..." : "다시 실행"}
+          {buttonLabel}
         </button>
       </div>
       {rerunError && <div className="text-[11px] text-[var(--red)]">재시뮬레이션 실패: {rerunError}</div>}

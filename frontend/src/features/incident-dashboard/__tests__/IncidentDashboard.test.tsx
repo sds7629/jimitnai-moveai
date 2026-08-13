@@ -67,7 +67,7 @@ describe("IncidentDashboard — prop 기반 상태 분기", () => {
 
   it("대응안 후보가 0건이면 시뮬레이션 미실행 안내를 표시한다", () => {
     render(<IncidentDashboard data={{ ...strikeScenarioMock, candidates: [] }} />);
-    expect(screen.getByText(/아직 시뮬레이션 결과가 없습니다/)).toBeInTheDocument();
+    expect(screen.getByText(/아직 실행하지 않았습니다/)).toBeInTheDocument();
   });
 
   it("showSopDemoNote가 false면 데모용 워터마크 문구를 표시하지 않는다", () => {
@@ -92,16 +92,27 @@ describe("IncidentDashboard — 인터랙션", () => {
     expect(screen.getByText(/불확실성: medium/)).toBeInTheDocument();
   });
 
-  it("'다시 실행' 버튼 클릭 시 onRerun 콜백이 호출된다", async () => {
+  it("'실행' 버튼 클릭 시 onRerun 콜백이 호출된다", async () => {
     const user = userEvent.setup();
     const onRerun = vi.fn();
     render(<IncidentDashboard data={strikeScenarioMock} onRerun={onRerun} />);
+
+    await user.click(screen.getByRole("button", { name: "실행" }));
+    expect(onRerun).toHaveBeenCalledTimes(1);
+  });
+
+  it("decisionPackage가 이미 있는 상태에서 '다시 실행' 버튼을 클릭해도 onRerun 콜백이 호출된다", async () => {
+    const user = userEvent.setup();
+    const onRerun = vi.fn();
+    render(
+      <IncidentDashboard data={strikeScenarioMock} decisionPackage={sampleDecisionPackage} onRerun={onRerun} />,
+    );
 
     await user.click(screen.getByRole("button", { name: "다시 실행" }));
     expect(onRerun).toHaveBeenCalledTimes(1);
   });
 
-  it("isRerunning이 true면 '다시 실행' 버튼이 비활성화되고 실행 중 문구를 보여준다", () => {
+  it("isRerunning이 true면 버튼이 비활성화되고 실행 중 문구를 보여준다(라벨과 무관)", () => {
     render(<IncidentDashboard data={strikeScenarioMock} isRerunning />);
     const button = screen.getByRole("button", { name: "실행 중..." });
     expect(button).toBeDisabled();
@@ -162,6 +173,25 @@ describe("IncidentDashboard — 의사결정 근거 패널", () => {
   it("decisionPackage prop이 없으면 의사결정 근거 패널을 렌더링하지 않는다", () => {
     render(<IncidentDashboard data={strikeScenarioMock} />);
     expect(screen.queryByText("의사결정 근거")).not.toBeInTheDocument();
+  });
+});
+
+describe("IncidentDashboard — 실행/다시 실행 버튼 라벨", () => {
+  it("decisionPackage가 없으면(아직 한 번도 실행 안 함) '실행' 버튼을 보여준다", () => {
+    render(<IncidentDashboard data={strikeScenarioMock} />);
+    expect(screen.getByRole("button", { name: "실행" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "다시 실행" })).not.toBeInTheDocument();
+  });
+
+  it("decisionPackage가 있으면(한 번이라도 실행됨) '다시 실행' 버튼을 보여준다", () => {
+    render(<IncidentDashboard data={strikeScenarioMock} decisionPackage={sampleDecisionPackage} />);
+    expect(screen.getByRole("button", { name: "다시 실행" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "실행" })).not.toBeInTheDocument();
+  });
+
+  it("isRerunning이 true이면 decisionPackage 유무와 무관하게 '실행 중...'을 보여준다", () => {
+    render(<IncidentDashboard data={strikeScenarioMock} decisionPackage={sampleDecisionPackage} isRerunning />);
+    expect(screen.getByRole("button", { name: "실행 중..." })).toBeInTheDocument();
   });
 });
 
