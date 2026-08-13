@@ -29,6 +29,7 @@ from app.db import get_db
 from app.repositories.decision_packages import DecisionPackageRepository
 from app.repositories.simulation_results import SimulationResultRepository
 from app.schemas.decision_package import DecisionPackageRead
+from app.services.orchestration import check_deadline_overrun
 from app.services.response_optimization import (
     IncidentNotEligibleError,
     IncidentNotFoundError,
@@ -63,5 +64,12 @@ def get_decision_package(incident_id: int, db: Session = Depends(get_db)) -> Dec
             raise HTTPException(status_code=409, detail=str(exc)) from exc
     else:
         package = existing
+
+    # 결정기한 초과 감지 (agents/orchestration.md work item #5): "요청이 들어올
+    # 때" 체크하는 두 지점 중 하나가 바로 이 GET 호출이다 -- 실제 알림 발송은
+    # 하지 않고, 아직 기록되지 않았다면 approvals(+audit_log)에 '기한초과'를
+    # 기록만 한다(app/services/orchestration.py 참고). 이 응답의 모양(package
+    # 자체)에는 영향을 주지 않는 순수 side-effect 체크라 반환값은 쓰지 않는다.
+    check_deadline_overrun(db, incident_id)
 
     return DecisionPackageRead.model_validate(package)
