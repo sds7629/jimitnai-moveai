@@ -2,7 +2,7 @@ from typing import Optional
 
 from .provider import LLMProvider
 
-DEFAULT_MODEL = "gemini-2.0-flash"
+DEFAULT_MODEL = "gemini-2.5-flash"
 
 
 class GeminiAPIError(RuntimeError):

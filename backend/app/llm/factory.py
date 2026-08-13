@@ -8,7 +8,7 @@ from .gemini_api import GeminiAPIProvider
 from .provider import LLMProvider
 
 VALID_PROVIDERS = {"gemini_api", "claude_cli"}
-DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
+DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 DEFAULT_CLAUDE_CLI_PATH = "claude"
 DEFAULT_CLAUDE_CLI_TIMEOUT = 120
 

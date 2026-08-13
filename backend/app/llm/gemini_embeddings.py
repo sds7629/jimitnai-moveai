@@ -16,13 +16,21 @@ from typing import Optional
 
 from .gemini_api import GeminiAPIError
 
-DEFAULT_EMBEDDING_MODEL = "text-embedding-004"
+DEFAULT_EMBEDDING_MODEL = "gemini-embedding-001"
 
-# document_chunks.embedding은 vector(768)로 고정되어 있다 (Gemini
-# text-embedding-004에 맞춘 크기 — db/init/002-schema.sql,
+# document_chunks.embedding은 vector(768)로 고정되어 있다 (db/init/002-schema.sql,
 # app/models/document.py의 EMBEDDING_DIM 참고). 이 상수도 그 고정값과 반드시
 # 일치해야 하며, 다른 차원의 임베딩 모델로 바꾸려면 스키마/컬럼도 함께
 # 바꿔야 한다.
+#
+# 실제 API로 확인한 내용(실키로 첫 테스트, 2026-08-13): 이전에 쓰던
+# "text-embedding-004"는 이 API 버전/계정에서 404로 존재하지 않는다 --
+# `client.models.list()`로 embedContent를 지원하는 모델을 조회하면
+# gemini-embedding-001 계열만 나온다. 이 모델은 기본 출력 차원이 768보다 커서
+# (Matryoshka 표현학습 지원 모델), embed_content 호출 시
+# config={"output_dimensionality": EMBEDDING_DIM}을 명시적으로 넘겨 768차원으로
+# 맞춘다 -- 혹시 이 옵션이 무시되거나 SDK/모델이 바뀌어도, 아래 차원 검증이
+# 스키마 불일치를 조용히 넘기지 않고 곧바로 GeminiAPIError로 걸러낸다.
 EMBEDDING_DIM = 768
 
 
@@ -73,7 +81,11 @@ def embed_text(
         client = _build_client(resolved_key)
 
     try:
-        response = client.models.embed_content(model=model, contents=text)
+        response = client.models.embed_content(
+            model=model,
+            contents=text,
+            config={"output_dimensionality": EMBEDDING_DIM},
+        )
     except Exception as exc:  # SDK별 예외 타입이 다양하므로 포괄적으로 래핑한다
         raise GeminiAPIError(f"Gemini Embedding API 호출 실패: {exc}") from exc
 

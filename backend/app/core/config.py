@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     # can read them once it's merged into backend/app/llm/.
     llm_provider: str = "gemini_api"
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-2.5-flash"
 
     # CORS origin for the (not-yet-built) frontend dev server, per
     # ARCHITECTURE.md §8.5.
