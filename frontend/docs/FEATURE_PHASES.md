@@ -159,14 +159,47 @@ Docker 편입(Phase 4)까지 포함해 **Phase 1~12 전부 완료**됐다. 이�
 - **완료 조건**: ~~`/reports/roi`에서 3개 시나리오(낙관/기준/보수)의 연간 방어 가능 기대손실·실현
   절감액·투자 회수기간이 표시되고, 공개사항 각주가 함께 보인다.~~ 충족.
 
-## 다음 액션
+## Phase 1~12 이후: 뷰 다듬기 (JSON 블록 → 실제 UI)
 
-Phase 1~12 전부 완료 — 더 이상 백엔드 대기 항목이 없다. 이제부터는 새 기능 페이즈가 아니라 아래
-"다듬기" 작업 후보들이다. 우선순위는 다음에 이어갈 때 다시 정한다.
+`DecisionPackagePanel`(의사결정 근거)과 `PostReportPage`(사후보고서)는 백엔드가 `dict[str, Any]`로
+느슨하게 유지하는 blob을 "라벨 + `JSON.stringify`"로만 펼쳐서 배선 여부만 확인했다 — 이제 각 섹션을
+실제 표/카드/뱃지 UI로 바꾼다.
 
-- Recharts 도입: `decision-package`/`post-report`의 JSON 블록 자리표시자를 실제 차트(P90/CVaR 분포,
-  ROI 시나리오 비교)로 교체
+**이 구간의 페이즈 분할 원칙(Phase 1~12와 다른 점)**: 섹션 하나하나를 각자 페이즈로 쪼개면(의사결정
+근거 10개 + 사후보고서 12개 = 22개) worktree/커밋 오버헤드가 실제 작업량보다 커진다. 대신 **같은
+표현 방식(표/카드/뱃지)을 쓰는 섹션 묶음 하나 = 페이즈 하나**로 나눈다. Phase 1~12와 이어지는
+번호를 그대로 쓴다.
+
+### 대상 A — 의사결정 근거 패널 (`DecisionPackagePanel`)
+
+| 페이즈 | 묶는 섹션 | 표현 방식 |
+|---|---|---|
+| Phase 13 | `expected_loss_p90_cvar` + `confidence_and_uncertainty` | 후보별 기대손실/P90/CVaR/신뢰도/불확실성 폭을 한 표로 (후보 ID가 공통 키) |
+| Phase 14 | `now_vs_6h_vs_no_action` | 무대응/지금/6시간후 3장 비교 카드 |
+| Phase 15 | `causal_path` | 노드를 순서 리스트로(각 노드의 basis/uncertainty 포함) — Impact DAG 컴포넌트와 톤 맞춤 |
+| Phase 16 | `data_and_documents_used` + `fact_inference_assumption` + `freshness_and_coverage` | "이 판단의 근거" 패널 하나로 통합 — 가정 목록 + 참고문서 + FACT/INFERENCE/ASSUMPTION 뱃지 + freshness/coverage 뱃지 |
+| Phase 17 | `feasibility_and_exclusion` + `key_sensitivity_variables` | 후보별 실행가능성 상태 + 민감도 변수 표 |
+| Phase 18 | `ranked_candidates` + `disclaimer` | 서버가 계산한 composite score 순위 리스트(현재 대응안 후보 랭킹 패널의 정렬 기준과는 다른 알고리즘이라 별도 표시), 면책 문구는 유지 |
+
+### 대상 B — 사후보고서 (`PostReportPage`)
+
+| 페이즈 | 묶는 섹션 | 표현 방식 |
+|---|---|---|
+| Phase 19 | 1(사건 개요) + 5(최종 결정과 승인자) | 요약 카드 |
+| Phase 20 | 2(예상 vs 실제 진행) + 3(동적 변수 변화) | 타임라인형 비교 |
+| Phase 21 | 4(검토한 대응안과 제외 사유) | 표 (feasibility_and_exclusion과 같은 톤) |
+| Phase 22 | 6(SOP 이력) + 11(자원 확보 실패·편차·에스컬레이션) | 기존 `TimelineView` 재사용 검토 |
+| Phase 23 | 7(예상 vs 실제 손실) + 8(회피한 손실과 추가 비용) + 9(LD·D&D 귀책) | 손익 정산 카드 — 9번은 이미 있는 비용 귀속 카드와 중복되지 않게 조정 |
+| Phase 24 | 10(시뮬레이션 오차) + 12(향후 개선사항) | 리스트 |
+
+### 다음 액션
+
+사용자 확정: **Phase 13부터 시작**(의사결정 근거의 기대손실·신뢰도 표). Phase 13~18(대상 A) 완료
+후 Phase 19~24(대상 B)로 넘어간다.
+
+그 외 다듬기 후보(뷰 작업과 별도, 우선순위 미정):
 - `openapi-typescript` 도입 재검토 (Phase 1에서 "엔드포인트 여러 개 붙으면 재검토"로 미뤄뒀던 지점 —
   이제 엔드포인트가 15개 이상이라 재검토 시점이 지났을 수 있음)
-- 화면 톤·스타일 다듬기 (지금은 기능 배선 위주라 시각 디자인은 와이어프레임 수준 그대로)
+- Recharts 등 차트 라이브러리 도입 여부 (표만으로 충분한지, 분포 시각화가 꼭 필요한지는 Phase 13~18
+  진행하면서 판단)
 - 테스트 커버리지 점검, e2e/실제 브라우저 확인
