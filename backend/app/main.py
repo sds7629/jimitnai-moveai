@@ -23,12 +23,15 @@ app = FastAPI(
     ),
 )
 
-# Frontend is not built yet in this wave (ARCHITECTURE.md scope note), but
-# CORS is wired up ahead of time per ARCHITECTURE.md §8.5 so the frontend
-# service can be dropped in later without touching this file.
+# CORS for the frontend dev server. allow_origins takes a list because
+# FRONTEND_ORIGIN can name more than one allowed origin (comma-separated --
+# see Settings.frontend_origins) -- "localhost" and "127.0.0.1" are distinct
+# origins to a browser even on the same machine/port, and a real CORS error
+# (frontend reachable at 127.0.0.1:5173) was traced to only localhost:5173
+# being allowed here.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_origin],
+    allow_origins=settings.frontend_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -26,8 +26,9 @@ services:
       APP_ENV: ${APP_ENV:-docker}
       LLM_PROVIDER: ${LLM_PROVIDER:-gemini_api}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
-      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+      GEMINI_USE_VERTEX_AI: ${GEMINI_USE_VERTEX_AI:-true}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173,http://127.0.0.1:5173}
     volumes:
       # Bind-mount source for live --reload during development.
       - ./backend:/app
