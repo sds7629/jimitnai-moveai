@@ -12,6 +12,7 @@
    - 현재 운영 스냅샷 (재고·생산·운송 상태 — 시드 데이터 기반)
 4. 외부 시스템 실시간 연동은 이번 스코프에서 제외한다. 항만·통관·ETA·재고·생산 데이터는 실제 연동 대신 **시나리오 흐름을 따르는 시드 데이터**로 대체한다.
 5. 시드 데이터는 3개 시나리오를 대응한다: **항만 적체 / 파업 / 관세**.
+6. 모든 인프라는 **Docker Compose**로 구성한다. 로컬 개발·데모 환경에서 별도 설치 없이 `docker compose up` 한 번으로 DB(pgvector)와 백엔드가 뜨는 것을 기준으로 한다.
 
 ## 2. 데이터 계층 (Postgres + pgvector)
 
@@ -103,3 +104,89 @@ RAG 문서(과거 사고·SOP·계약·플레이북) 적재는 화면 없이 백
 - **시드 데이터가 곧 프론트 개발용 mock**: 적체/파업/관세 3개 시나리오는 백엔드가 만드는 즉시 프론트의 개발/데모 데이터로 그대로 재사용된다. 별도 mock 서버가 필요 없다.
 - **경계선은 워크플로 단계**: 한 사람이 "시뮬레이션 로직"과 "시뮬레이션 결과 화면"을 동시에 맡지 않는다. API 그룹 단위로 담당을 나누면 백엔드 쪽 로직 변경이 프론트 작업을 막지 않는다(응답 스키마만 안 바뀌면 됨).
 - **DAG 시각화는 별도 트랙**: 그래프 렌더링(예: React Flow, d3)은 다른 화면과 의존성이 적어 가장 먼저 독립적으로 착수 가능 — 고정된 mock DAG JSON으로 바로 시작할 수 있다.
+
+---
+
+## 8. 인프라 구성 (Docker Compose)
+
+로컬 개발과 데모 환경을 `docker compose up` 한 번으로 재현 가능하게 구성한다. 각자 로컬에 Postgres/pgvector를 따로 설치하지 않는다. 이 장은 아직 실제 코드/설정 파일을 만들기 전 단계의 청사진이며, 실제 스캐폴딩 작업은 별도로 진행한다.
+
+### 8.1 서비스 구성
+
+| 서비스 | 이미지/빌드 | 역할 |
+|---|---|---|
+| `db` | `pgvector/pgvector:pg16` | 운영 데이터 + RAG 임베딩을 함께 저장. 초기화 스크립트로 `CREATE EXTENSION vector` 자동 실행 |
+| `backend` | `./backend` (Dockerfile) | FastAPI 앱. `db`의 healthcheck 통과 후 기동, `.env`로 DB 접속정보·LLM 프로바이더 설정 주입 |
+| `frontend` | `./frontend` (Dockerfile) | React + Vite 개발 서버. 7.1의 화면들을 서빙하고 `backend` API를 호출 |
+| `adminer` | `adminer` | DB 내용을 브라우저에서 바로 확인 (해커톤 디버깅용, 선택적) |
+
+프론트엔드도 `db`·`backend`와 함께 `docker compose up` 한 번으로 뜨도록 편입한다 — 별도 dev 서버를 각자 로컬에서 따로 띄우지 않는다.
+
+### 8.2 디렉토리 구조(예정)
+
+```text
+jimitnai-moveai/
+├── docker-compose.yml
+├── .env.example
+├── db/
+│   └── init/
+│       ├── 001-init-extensions.sql   # CREATE EXTENSION vector
+│       └── 002-seed-scenarios.sql (또는 py 스크립트)  # 적체/파업/관세 시드 적재
+├── backend/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   ├── app/
+│   │   ├── main.py           # FastAPI 앱 진입점, /health 등
+│   │   ├── core/
+│   │   │   └── config.py     # 환경변수 기반 설정(pydantic-settings)
+│   │   ├── db.py             # SQLAlchemy 엔진/세션
+│   │   ├── llm/              # 기존 feature/llm-provider 작업 병합 위치
+│   │   └── ...               # 이후 모델/라우터/RAG/에이전트 모듈 추가
+│   └── tests/
+└── frontend/
+    ├── Dockerfile
+    ├── package.json
+    ├── vite.config.ts
+    └── src/
+        ├── main.tsx
+        ├── api/               # 백엔드 API 클라이언트 (7.1 표의 API 그룹과 매칭)
+        ├── pages/             # 7.1 표의 화면 단위와 1:1 매칭
+        └── components/
+            └── dag/           # Impact DAG 시각화 (React Flow 등)
+```
+
+`llm/` 프로바이더 모듈(Gemini API ↔ 로컬 `claude -p` 스위칭)은 별도 브랜치(`feature/llm-provider`)에서 이미 작업 중이며, 백엔드 스캐폴딩 시 `backend/app/llm/`로 병합해 들어간다.
+
+### 8.3 환경변수
+
+| 변수 | 예시 값 | 용도 |
+|---|---|---|
+| `POSTGRES_DB` | `moveai` | DB 이름 |
+| `POSTGRES_USER` | `moveai` | DB 사용자 |
+| `POSTGRES_PASSWORD` | `moveai` | DB 비밀번호 (로컬 기본값, 운영 배포 시 교체 필요) |
+| `DATABASE_URL` | `postgresql+psycopg://moveai:moveai@db:5432/moveai` | 백엔드가 `db` 서비스에 접속하는 전체 URL |
+| `APP_ENV` | `local` \| `docker` | 실행 환경 구분 |
+| `LLM_PROVIDER` | `gemini_api` \| `claude_cli` | `feature/llm-provider`에서 정의한 LLM 백엔드 선택 |
+| `GEMINI_API_KEY` | (비움) | Gemini API 키 |
+| `GEMINI_MODEL` | `gemini-2.0-flash` | 사용할 Gemini 모델 |
+| `VITE_API_BASE_URL` | `http://localhost:8000` | 프론트엔드(브라우저)가 호출할 백엔드 주소 |
+
+비밀값(`GEMINI_API_KEY` 등)은 이미지나 compose 파일에 하드코딩하지 않고 `.env` 파일(커밋 제외, `.env.example`만 커밋)로만 주입한다.
+
+### 8.4 포트
+
+| 서비스 | 포트 | 용도 |
+|---|---|---|
+| `db` | 5432 | Postgres 접속 (로컬 클라이언트로 직접 붙어 디버깅할 때) |
+| `backend` | 8000 | FastAPI (Swagger UI: `/docs`) |
+| `frontend` | 5173 | Vite 개발 서버 |
+| `adminer` | 8080 | DB 웹 UI |
+
+### 8.5 운영 원칙
+
+- 백엔드 컨테이너는 개발 중 코드 변경이 바로 반영되도록 소스 디렉토리를 볼륨 마운트하고 `--reload`로 띄운다.
+- 프론트엔드 컨테이너도 소스 디렉토리를 볼륨 마운트해 Vite HMR(Hot Module Replacement)이 그대로 동작하게 하되, `node_modules`는 컨테이너 내부 설치본을 유지하도록 별도(익명) 볼륨으로 분리한다.
+- `frontend`는 브라우저(호스트)에서 직접 `backend`를 호출하므로 두 서비스는 서로 다른 origin이다 — `backend`에 `frontend`의 origin(`http://localhost:5173`)을 허용하는 CORS 설정이 필요하다.
+- DB 데이터는 named volume으로 영속화해 컨테이너 재시작 시에도 시드 데이터가 유지된다.
+- 시드 데이터(적체/파업/관세 3종)는 컨테이너 최초 기동 시 자동으로 적재하는 초기화 스크립트로 관리해, 누구든 `docker compose up` 한 번으로 동일한 데모 상태를 재현할 수 있게 한다.
+- `db` 서비스의 healthcheck가 통과해야 `backend`가 기동하도록, `backend`의 헬스체크(`/health`)가 통과해야 `frontend`가 기동하도록 `depends_on: condition: service_healthy`를 체이닝한다.
