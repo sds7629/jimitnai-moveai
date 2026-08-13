@@ -116,3 +116,59 @@ export type CandidateSummaryApi =
       start_time_variant: string | null;
       simulation: CandidateSimulationApi;
     };
+
+/**
+ * Phase 20 전용 타입 — sections["2_최초_예상과_실제_진행_과정"]의 실제 형태
+ * (backend/app/services/post_report.py _section_2_expected_vs_actual_progress 확인).
+ *
+ * actual_progress는 _unavailable(SCOPE_LIMITATION_NOTE)이라 항상 available:false다 —
+ * 실적 확정 API가 없다는 건 이 시스템의 의도된 스코프 제약이므로 reason을 화면에서 숨기지 않는다.
+ */
+export interface ExpectedProgressApi {
+  baseline: CandidateSummaryApi;
+  approved_candidate: CandidateSummaryApi;
+}
+
+export interface UnavailableWithReasonApi {
+  available: false;
+  reason: string;
+}
+
+export interface ExpectedVsActualProgressSection {
+  expected: ExpectedProgressApi;
+  actual_status: string;
+  actual_progress: UnavailableWithReasonApi;
+}
+
+/**
+ * Phase 20 전용 타입 — sections["3_주요_동적_변수의_변화"]의 실제 형태
+ * (backend/app/services/post_report.py _section_3_dynamic_variable_changes 확인).
+ */
+export interface SnapshotVersionApi {
+  snapshot_id: number;
+  data_version: string;
+  scenario_version: string;
+  quality_mode: string;
+  freshness_seconds: number | null;
+  coverage_ratio: number | null;
+  assumptions: string[];
+  created_at: string;
+}
+
+export interface SnapshotChangeApi {
+  from_snapshot_id: number;
+  to_snapshot_id: number;
+  from_created_at: string;
+  to_created_at: string;
+  summary: string;
+}
+
+/**
+ * _summarize_snapshot_changes는 스냅샷 이력이 0~1개면 안내 문구 string[]을,
+ * 2개 이상이면 버전 간 diff 객체 배열을 반환한다 — 유니온으로 받고 화면에서 분기한다.
+ */
+export interface DynamicVariableChangesSection {
+  snapshot_count: number;
+  versions: SnapshotVersionApi[];
+  changes_summary: string[] | SnapshotChangeApi[];
+}
