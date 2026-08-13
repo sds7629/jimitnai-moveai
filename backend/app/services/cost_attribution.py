@@ -38,6 +38,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.llm.gemini_api import GeminiAPIError
 from app.rag.search import EmbedFn, search_similar_chunks
 from app.repositories.decision_packages import DecisionPackageRepository
 from app.repositories.incidents import IncidentRepository
@@ -224,7 +225,17 @@ def classify_cost_attribution(
     amount = avoided["amount"]
 
     query_text = f"{incident.type} 사건({incident.location}) 관련 지연배상금(LD)·체선체화료(D&D) 귀책 조항"
-    chunks = search_similar_chunks(db, query_text, doc_types=["계약"], top_k=5, embed_fn=embed_fn)
+    rag_unavailable = False
+    try:
+        chunks = search_similar_chunks(db, query_text, doc_types=["계약"], top_k=5, embed_fn=embed_fn)
+    except GeminiAPIError:
+        # 병합 전 리뷰에서 발견: GEMINI_API_KEY가 없는 환경(이 샌드박스 포함)에서는
+        # 임베딩 호출 자체가 GeminiAPIError를 던져 이 엔드포인트 전체가 500으로
+        # 죽었다. "계약 조항을 검색했지만 못 찾음"과 "애초에 검색할 수 없었음"은
+        # 이 모듈 입장에서 같은 결론(귀책을 확정할 근거 없음 -> 안전한 기본값)으로
+        # 이어져야 하므로, 검색 자체가 불가능한 경우도 "조항 0건"과 동일하게 처리한다.
+        chunks = []
+        rag_unavailable = True
 
     ld_hits = [c for c in chunks if _matches_any(c["chunk_text"], LD_KEYWORDS)]
     dnd_hits = [c for c in chunks if _matches_any(c["chunk_text"], DND_KEYWORDS)]
@@ -255,14 +266,23 @@ def classify_cost_attribution(
         )
     else:
         breakdown = {DIRECT_PL_KEY: 0.0, CUSTOMER_AVOIDANCE_KEY: 0.0, DISPUTE_NEGOTIABLE_KEY: amount}
-        classification_note = (
-            "계약 조항 검색 결과에 LD/D&D 관련 조항을 찾지 못했습니다(계약 문서가 이 사건에 연결되지 "
-            "않았거나, 관련 조항이 없음). 안전한 기본값으로 전액을 분쟁·협상 가능 금액으로 분류했습니다."
-        )
+        if rag_unavailable:
+            classification_note = (
+                "계약 조항을 검색하지 못했습니다(임베딩 API 미구성 -- GEMINI_API_KEY 없음). "
+                "'조항을 찾지 못함'과 동일하게 취급해 안전한 기본값으로 전액을 분쟁·협상 가능 "
+                "금액으로 분류했습니다. GEMINI_API_KEY 설정 후 다시 조회하면 실제 계약 조항 "
+                "검색 결과가 반영됩니다."
+            )
+        else:
+            classification_note = (
+                "계약 조항 검색 결과에 LD/D&D 관련 조항을 찾지 못했습니다(계약 문서가 이 사건에 연결되지 "
+                "않았거나, 관련 조항이 없음). 안전한 기본값으로 전액을 분쟁·협상 가능 금액으로 분류했습니다."
+            )
 
     return {
         "incident_id": incident_id,
         "is_heuristic": True,
+        "rag_unavailable": rag_unavailable,
         "heuristic_disclaimer": (
             "이 분류는 실제 법무 판단이 아니라 계약 조항 RAG 검색 결과에 기반한 휴리스틱입니다. "
             "최종 귀책·비용 부담 판단은 법무·계약 담당자의 검토를 거쳐야 합니다"

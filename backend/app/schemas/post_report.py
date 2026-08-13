@@ -42,6 +42,7 @@ class CostAttributionRead(BaseModel):
 
     incident_id: int
     is_heuristic: bool
+    rag_unavailable: bool
     heuristic_disclaimer: str
     avoided_loss_basis: dict[str, Any]
     matched_ld_clauses: list[dict[str, Any]]
