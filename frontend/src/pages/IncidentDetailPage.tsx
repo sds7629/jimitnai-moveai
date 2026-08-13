@@ -11,6 +11,8 @@ import { summarizeSnapshot, type SnapshotSummary } from "../features/snapshot/fo
 import { listCandidates, runSimulation } from "../features/candidates/api";
 import { mapCandidatesToDashboard } from "../features/candidates/mapping";
 import type { CandidateApi } from "../features/candidates/types";
+import { getDecisionPackage } from "../features/decision-package/api";
+import type { DecisionPackageApi } from "../features/decision-package/types";
 
 type LoadState =
   | { status: "loading" }
@@ -23,18 +25,23 @@ type LoadState =
       dagColumns: DagColumn[];
       snapshot: SnapshotSummary;
       candidatesApi: CandidateApi[];
+      decisionPackage: DecisionPackageApi;
     };
 
 /**
- * 사건 상세 화면 (frontend/docs/FEATURE_PHASES.md Phase 2~3~5).
+ * 사건 상세 화면 (frontend/docs/FEATURE_PHASES.md Phase 2~3~5~6).
  *
- * incident(GET /incidents 목록에서 찾음), impact-dag, 운영 스냅샷, 대응안 후보를 병렬로 조회해서
- * 실제 데이터로 채운다. SOP/승인 패널은 아직 백엔드 API가 없어서 strikeScenarioMock의 값을 그대로
- * 유지한다 — 해당 API가 생기면 이 부분만 실제 호출로 바뀐다 (Phase 8 이후).
+ * incident(GET /incidents 목록에서 찾음), impact-dag, 운영 스냅샷, 대응안 후보, 의사결정 근거를
+ * 병렬로 조회해서 실제 데이터로 채운다. SOP/승인 패널은 아직 백엔드 API가 없어서
+ * strikeScenarioMock의 값을 그대로 유지한다 — 해당 API가 생기면 이 부분만 실제 호출로 바뀐다
+ * (Phase 8 이후).
  *
  * GET /incidents/{id} 단건 조회 엔드포인트가 없어서, 목록을 통째로 받아 id로 찾는 방식을 쓴다.
- * "다시 실행"은 POST /simulate를 트리거한 뒤 GET /candidates를 다시 조회한다 — LLM 호출이 섞여있어
- * 몇 초 걸릴 수 있으므로 isRerunning으로 버튼을 잠그고, 실패해도 기존 화면은 그대로 유지한다.
+ * "다시 실행"은 POST /simulate를 트리거한 뒤 candidates·decision-package를 다시 조회한다 —
+ * decision-package는 백엔드가 "최신 시뮬레이션 이후면 새로 만들고, 아니면 재사용"하는 캐싱 정책을
+ * 쓰므로(app/api/decision_package.py) 재시뮬레이션 후에는 반드시 다시 불러와야 최신 내용이 반영된다.
+ * LLM 호출이 섞여있어 몇 초 걸릴 수 있으므로 isRerunning으로 버튼을 잠그고, 실패해도 기존 화면은
+ * 그대로 유지한다.
  */
 export function IncidentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -51,8 +58,9 @@ export function IncidentDetailPage() {
       getImpactDag(incidentId),
       getLatestSnapshot(incidentId),
       listCandidates(incidentId),
+      getDecisionPackage(incidentId),
     ])
-      .then(([incidents, dag, snapshot, candidatesResponse]) => {
+      .then(([incidents, dag, snapshot, candidatesResponse, decisionPackage]) => {
         if (cancelled) return;
 
         const incident = incidents.find((item) => item.id === incidentId);
@@ -68,6 +76,7 @@ export function IncidentDetailPage() {
           dagColumns: layoutDagIntoColumns(dag.nodes, dag.edges),
           snapshot: summarizeSnapshot(snapshot),
           candidatesApi: candidatesResponse.candidates,
+          decisionPackage,
         });
       })
       .catch((error: unknown) => {
@@ -89,8 +98,13 @@ export function IncidentDetailPage() {
     setRerunError(undefined);
     try {
       await runSimulation(incidentId);
-      const { candidates } = await listCandidates(incidentId);
-      setState((prev) => (prev.status === "success" ? { ...prev, candidatesApi: candidates } : prev));
+      const [{ candidates }, decisionPackage] = await Promise.all([
+        listCandidates(incidentId),
+        getDecisionPackage(incidentId),
+      ]);
+      setState((prev) =>
+        prev.status === "success" ? { ...prev, candidatesApi: candidates, decisionPackage } : prev,
+      );
     } catch (error: unknown) {
       setRerunError(error instanceof Error ? error.message : "알 수 없는 오류");
     } finally {
@@ -138,6 +152,7 @@ export function IncidentDetailPage() {
         excludedCandidates,
       }}
       snapshot={state.snapshot}
+      decisionPackage={state.decisionPackage}
       isRerunning={isRerunning}
       rerunError={rerunError}
       onRerun={handleRerun}

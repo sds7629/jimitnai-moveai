@@ -5,6 +5,7 @@ import { IncidentDashboard } from "../IncidentDashboard";
 import { strikeScenarioMock } from "../mockData";
 import { CandidateRow } from "../components/CandidateRow";
 import type { SnapshotSummary } from "../../snapshot/format";
+import type { DecisionPackageApi } from "../../decision-package/types";
 
 const sampleSnapshot: SnapshotSummary = {
   dataVersion: "v1",
@@ -13,6 +14,26 @@ const sampleSnapshot: SnapshotSummary = {
   freshnessLabel: "5분 전",
   coverageLabel: "100%",
   assumptions: ["가정 A"],
+};
+
+const sampleDecisionPackage: DecisionPackageApi = {
+  id: 1,
+  incident_id: 1,
+  recommended_deadline: null,
+  created_at: "2026-08-13T00:00:00Z",
+  package: {
+    expected_loss_p90_cvar: {},
+    now_vs_6h_vs_no_action: {},
+    causal_path: {},
+    data_and_documents_used: {},
+    fact_inference_assumption: {},
+    freshness_and_coverage: {},
+    key_sensitivity_variables: {},
+    feasibility_and_exclusion: {},
+    confidence_and_uncertainty: {},
+    ranked_candidates: {},
+    disclaimer: "테스트용 면책 문구",
+  },
 };
 
 describe("IncidentDashboard — 정상 시나리오(happy path)", () => {
@@ -125,6 +146,18 @@ describe("IncidentDashboard — 운영 스냅샷 상태 바", () => {
   it("snapshot prop이 없으면 스냅샷 상태 바를 렌더링하지 않는다", () => {
     render(<IncidentDashboard data={strikeScenarioMock} />);
     expect(screen.queryByText(/데이터 버전/)).not.toBeInTheDocument();
+  });
+});
+
+describe("IncidentDashboard — 의사결정 근거 패널", () => {
+  it("decisionPackage prop이 있으면 면책 문구를 표시한다", () => {
+    render(<IncidentDashboard data={strikeScenarioMock} decisionPackage={sampleDecisionPackage} />);
+    expect(screen.getByText("테스트용 면책 문구")).toBeInTheDocument();
+  });
+
+  it("decisionPackage prop이 없으면 의사결정 근거 패널을 렌더링하지 않는다", () => {
+    render(<IncidentDashboard data={strikeScenarioMock} />);
+    expect(screen.queryByText("의사결정 근거")).not.toBeInTheDocument();
   });
 });
 

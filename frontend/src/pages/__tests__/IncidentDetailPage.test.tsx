@@ -7,20 +7,24 @@ import { listIncidents } from "../../features/incidents/api";
 import { getImpactDag } from "../../features/impact-dag/api";
 import { getLatestSnapshot } from "../../features/snapshot/api";
 import { listCandidates, runSimulation } from "../../features/candidates/api";
+import { getDecisionPackage } from "../../features/decision-package/api";
 import type { IncidentListItem } from "../../features/incidents/types";
 import type { ImpactDagApiResponse } from "../../features/impact-dag/types";
 import type { OperationalSnapshotApi } from "../../features/snapshot/types";
 import type { CandidateApi, CandidatesListResponse } from "../../features/candidates/types";
+import type { DecisionPackageApi } from "../../features/decision-package/types";
 
 vi.mock("../../features/incidents/api");
 vi.mock("../../features/impact-dag/api");
 vi.mock("../../features/snapshot/api");
 vi.mock("../../features/candidates/api");
+vi.mock("../../features/decision-package/api");
 const mockListIncidents = vi.mocked(listIncidents);
 const mockGetImpactDag = vi.mocked(getImpactDag);
 const mockGetLatestSnapshot = vi.mocked(getLatestSnapshot);
 const mockListCandidates = vi.mocked(listCandidates);
 const mockRunSimulation = vi.mocked(runSimulation);
+const mockGetDecisionPackage = vi.mocked(getDecisionPackage);
 
 const incidents: IncidentListItem[] = [
   {
@@ -104,6 +108,26 @@ const oneCandidate: CandidateApi = {
 
 const candidatesResponse: CandidatesListResponse = { incident_id: 2, candidates: [oneCandidate] };
 
+const decisionPackage: DecisionPackageApi = {
+  id: 1,
+  incident_id: 2,
+  recommended_deadline: null,
+  created_at: "2026-08-13T02:00:00Z",
+  package: {
+    expected_loss_p90_cvar: {},
+    now_vs_6h_vs_no_action: {},
+    causal_path: {},
+    data_and_documents_used: {},
+    fact_inference_assumption: {},
+    freshness_and_coverage: {},
+    key_sensitivity_variables: {},
+    feasibility_and_exclusion: {},
+    confidence_and_uncertainty: {},
+    ranked_candidates: {},
+    disclaimer: "이 패키지는 대응안의 순위와 근거를 제공할 뿐입니다.",
+  },
+};
+
 function renderAt(id: string) {
   return render(
     <MemoryRouter initialEntries={[`/incidents/${id}`]}>
@@ -119,10 +143,11 @@ function mockAllSuccess() {
   mockGetImpactDag.mockResolvedValue(dag);
   mockGetLatestSnapshot.mockResolvedValue(snapshot);
   mockListCandidates.mockResolvedValue(candidatesResponse);
+  mockGetDecisionPackage.mockResolvedValue(decisionPackage);
 }
 
 describe("IncidentDetailPage — 정상 시나리오(happy path)", () => {
-  it("사건 정보·DAG·스냅샷·대응안 후보를 함께 불러와 대시보드를 렌더링한다", async () => {
+  it("사건 정보·DAG·스냅샷·대응안 후보·의사결정 근거를 함께 불러와 대시보드를 렌더링한다", async () => {
     mockAllSuccess();
 
     renderAt("2");
@@ -131,6 +156,7 @@ describe("IncidentDetailPage — 정상 시나리오(happy path)", () => {
     expect(screen.getByText("항만/운송 노동 파업")).toBeInTheDocument();
     expect(screen.getByText("데이터 버전 v1")).toBeInTheDocument();
     expect(screen.getByText("안전재고 사전 당김")).toBeInTheDocument();
+    expect(screen.getByText("이 패키지는 대응안의 순위와 근거를 제공할 뿐입니다.")).toBeInTheDocument();
   });
 });
 
@@ -140,6 +166,7 @@ describe("IncidentDetailPage — 로딩 상태", () => {
     mockGetImpactDag.mockReturnValue(new Promise(() => {}));
     mockGetLatestSnapshot.mockReturnValue(new Promise(() => {}));
     mockListCandidates.mockReturnValue(new Promise(() => {}));
+    mockGetDecisionPackage.mockReturnValue(new Promise(() => {}));
 
     renderAt("2");
 
@@ -160,6 +187,15 @@ describe("IncidentDetailPage — 예외 케이스", () => {
   it("대응안 후보 조회가 실패해도 에러 메시지를 표시한다", async () => {
     mockAllSuccess();
     mockListCandidates.mockRejectedValue(new Error("후보 조회 실패"));
+
+    renderAt("2");
+
+    expect(await screen.findByText(/불러오지 못했습니다/)).toBeInTheDocument();
+  });
+
+  it("의사결정 근거 조회가 실패해도 에러 메시지를 표시한다", async () => {
+    mockAllSuccess();
+    mockGetDecisionPackage.mockRejectedValue(new Error("근거 조회 실패"));
 
     renderAt("2");
 

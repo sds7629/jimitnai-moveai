@@ -1,10 +1,12 @@
 import { useState } from "react";
 import type { AiStatus, ApprovalAction, IncidentDashboardData } from "./types";
 import type { SnapshotSummary } from "../snapshot/format";
+import type { DecisionPackageApi } from "../decision-package/types";
 import { Header } from "./components/Header";
 import { IncidentContextBar } from "./components/IncidentContextBar";
 import { SnapshotStatusBar } from "./components/SnapshotStatusBar";
 import { ImpactDag } from "./components/ImpactDag";
+import { DecisionPackagePanel } from "./components/DecisionPackagePanel";
 import { CandidateRankingPanel } from "./components/CandidateRankingPanel";
 import { SopPanel } from "./components/SopPanel";
 import { ApprovalPanel } from "./components/ApprovalPanel";
@@ -17,6 +19,8 @@ export interface IncidentDashboardProps {
   showSopDemoNote?: boolean;
   /** 없으면 스냅샷 상태 바를 렌더링하지 않는다 (Phase 3 이전 호출부와의 호환) */
   snapshot?: SnapshotSummary;
+  /** 없으면 의사결정 근거 패널을 렌더링하지 않는다 (Phase 6 이전 호출부와의 호환) */
+  decisionPackage?: DecisionPackageApi;
   /** POST /simulate가 진행 중일 때 "다시 실행" 버튼에 로딩 상태를 표시 (Phase 5) */
   isRerunning?: boolean;
   rerunError?: string;
@@ -39,6 +43,7 @@ export function IncidentDashboard({
   aiStatus = "cache_fallback",
   showSopDemoNote = true,
   snapshot,
+  decisionPackage,
   isRerunning = false,
   rerunError,
   onRerun,
@@ -62,6 +67,12 @@ export function IncidentDashboard({
       />
       {snapshot && <SnapshotStatusBar snapshot={snapshot} />}
       <ImpactDag dag={data.dag} />
+
+      {decisionPackage && (
+        <div className="px-7 pt-5">
+          <DecisionPackagePanel decisionPackage={decisionPackage} />
+        </div>
+      )}
 
       <div className="flex gap-4 p-7">
         <CandidateRankingPanel candidates={data.candidates} excludedCandidates={data.excludedCandidates} />
