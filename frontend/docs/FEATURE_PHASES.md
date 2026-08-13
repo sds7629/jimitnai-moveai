@@ -11,28 +11,28 @@
   백엔드 속도가 빠르므로 문서로 먼저 스펙을 고정하기보다 실제 Pydantic 스키마를 그때그때 확인해서 맞춘다.
 - 각 페이즈는 "완료 조건"을 명시한다 — 완료 조건을 만족하면 다음 페이즈로 넘어간다.
 
-## 전체 기능 목록과 현재 상태 (2번째 검토)
+## 전체 기능 목록과 현재 상태 (3번째 검토)
 
-`ARCHITECTURE.md` §7.1 표의 10개 워크플로 화면 기준. 최초 작성 이후 백엔드가 대응 설계·제약 검증·
-시뮬레이션·의사결정 최적화·오케스트레이션(승인 상태머신 + SSE) 웨이브를 전부 병합해서, 상태가 크게
-바뀌었다.
+`ARCHITECTURE.md` §7.1 표의 10개 워크플로 화면 기준. 백엔드가 8개 웨이브(대응 설계·제약 검증·
+시뮬레이션·의사결정 최적화·오케스트레이션·커뮤니케이션-SOP·실행추적·**사후보고**)를 전부 병합해서,
+**백엔드는 이제 전체 워크플로를 다 구현했다.**
 
 | # | 기능 | 백엔드 API | 상태 |
 |---|---|---|---|
 | 1 | 사건 목록 (시드 시나리오 선택) | `GET /incidents` | ✅ **완료** (Phase 1) |
 | 2 | Impact DAG 시각화 | `GET /incidents/{id}/impact-dag` | ✅ **완료** (Phase 2) |
 | 3 | 운영 스냅샷 상태 (freshness/coverage) | `GET /incidents/{id}/snapshots/latest` | ✅ **완료** (Phase 3) |
-| 4 | 대응안 후보 비교·시뮬레이션 | `POST /incidents/{id}/simulate`, `GET .../candidates` | ✅ 있음 — 착수 가능 (Phase 5) |
-| 5 | 의사결정 근거 패널 | `GET /incidents/{id}/decision-package` | ✅ 있음 — 착수 가능 (Phase 6) |
-| 6 | 담당자 승인 | `POST /incidents/{id}/approvals` | ✅ 있음 — 착수 가능 (Phase 7) |
-| 7 | 실시간 갱신 (SSE) | `GET /incidents/{id}/stream` | ✅ 있음 — 착수 가능 (Phase 8) |
-| 8 | SOP 배포·미리보기 | `POST /approvals/{id}/dispatch-sop`, `GET .../sop-status` | ❌ 없음 |
-| 9 | 실행 추적 타임라인 | `GET /incidents/{id}/timeline` | ❌ 없음 (`audit_log` 테이블은 있음) |
-| 10 | 사후보고서 | `GET /incidents/{id}/post-report` | ❌ 없음 |
-| 11 | ROI·비용 귀속 | `GET /reports/roi`, `GET .../cost-attribution` | ❌ 없음 |
+| 4 | 대응안 후보 비교·시뮬레이션 | `POST /incidents/{id}/simulate`, `GET .../candidates` | ✅ **완료** (Phase 5) |
+| 5 | 의사결정 근거 패널 | `GET /incidents/{id}/decision-package` | ✅ **완료** (Phase 6) |
+| 6 | 담당자 승인 | `POST /incidents/{id}/approvals` | ✅ **완료** (Phase 7) |
+| 7 | 실시간 갱신 (SSE) | `GET /incidents/{id}/stream` | ✅ **완료** (Phase 8) |
+| 8 | SOP 배포·상태 | `POST /approvals/{id}/dispatch-sop`, `GET .../sop-status` | ✅ **완료** (Phase 9) |
+| 9 | 실행 추적 타임라인·상태 전이 | `PATCH /sop/{sop_id}/status`, `GET .../timeline` | ✅ **완료** (Phase 10) |
+| 10 | 사후보고서 + 비용 귀속 | `GET .../post-report`, `GET .../cost-attribution` | ✅ 있음 — 착수 가능 (Phase 11) |
+| 11 | 연간 ROI | `GET /reports/roi` | ✅ 있음 — 착수 가능 (Phase 12) |
 
-**요약**: 1~7번(진입~승인, SSE까지)이 전부 실연동 가능한 상태다. 남은 건 SOP/타임라인/사후보고서/ROI
-4개뿐이고, 이 4개는 여전히 백엔드 라우터가 없다.
+Docker 편입(Phase 4)까지 포함하면 **Phase 1~12 전부 착수 가능한 상태**다 — 이 문서가 처음 만들어진
+뒤로 처음으로 "백엔드 대기" 항목이 하나도 안 남았다.
 
 ---
 
@@ -44,106 +44,113 @@
 ## Phase 2 — Impact DAG 실연동 ✅ 완료
 
 `GET /incidents/{id}/impact-dag`. 위상정렬로 flat한 노드/엣지를 좌→우 컬럼에 배치(`layoutDagIntoColumns`).
-`entityType`/지연·비용 뱃지는 실제 스키마에 없어서 제거, 노드 상세 패널을 `basis`/`uncertainty`/
-`responsible_party`/`affected_target`/`expected_time` 실제 값으로 교체.
 
 ## Phase 3 — 운영 스냅샷 상태 표시 ✅ 완료
 
-`GET /incidents/{id}/snapshots/latest`. `quality_mode`/`freshness_seconds`/`coverage_ratio`를
-사람이 읽을 수 있는 문구로 변환(`summarizeSnapshot`)해서 대시보드 상단에 상태 바로 표시.
+`GET /incidents/{id}/snapshots/latest`. `summarizeSnapshot`으로 사람이 읽을 수 있는 문구로 변환.
 
-## Phase 4 — docker-compose에 frontend 서비스 편입 (미착수)
+## Phase 4 — docker-compose에 frontend 서비스 편입 ✅ 완료
 
-- 기능이 아니라 인프라 정합성 문제 — 지금은 로컬 `npm run dev`로만 개발 중이라 `ARCHITECTURE.md` §1-6
-  "모든 인프라는 Docker Compose로 구성한다" 원칙과 어긋난 채로 있다.
-- **범위**: `frontend/Dockerfile` 작성, `docker-compose.yml`에 `frontend` 서비스 추가
-- **완료 조건**: `docker compose up`만으로 db/backend/frontend가 함께 뜨고 지금까지의 화면이 그대로 동작
+`frontend/Dockerfile` + `docker-compose.yml` frontend 서비스. `docker compose up`으로 4개 컨테이너
+전부 healthy, end-to-end(curl로 시드 사건 조회까지) 검증 완료.
 
----
+## Phase 5 — 대응안 후보 비교·시뮬레이션 ✅ 완료
 
-## Phase 5 — 대응안 후보 비교·시뮬레이션 (신규 착수 가능)
+`POST /incidents/{id}/simulate`, `GET /incidents/{id}/candidates`. `mapCandidatesToDashboard`로
+기대손실 오름차순 정렬, baseline 대비 절감액/완화율 계산. "다시 실행" 버튼이 실제 파이프라인을 트리거.
 
-- **백엔드**: `POST /incidents/{id}/simulate` (파이프라인 재실행), `GET /incidents/{id}/candidates`
-  (결과 조회) — 완성. 실제 응답 필드(확인됨, `backend/app/schemas/simulate.py`):
-  ```python
-  CandidateWithLatestSimulation:
-    candidate_type, description, validation_status, exclusion_category, exclusion_detail,
-    preconditions, start_time_variant, latest_simulation: SimulationResultRead | None
+## Phase 6 — 의사결정 근거 패널 ✅ 완료
 
-  SimulationResultRead:
-    expected_loss, p90, cvar, sensitivity_variables, confidence,
-    fact, inference, assumption   # 각각 dict — FACT/INFERENCE/ASSUMPTION이 실제로 존재한다!
-  ```
-- **기존 목업과의 차이**: `mockData.ts`의 `ResponseCandidate`(rank/savingsAmount/remainingLoss/
-  mitigationRatio)는 실제 응답과 필드명·구조가 다르다 — "잔여손실 개별 vs 누적" 논쟁(Phase 2 완료 시점
-  미해결 이슈)도 실제로는 랭킹 개념 자체가 없고, 후보별 `latest_simulation`(expected_loss/p90/cvar)을
-  프론트에서 정렬해서 보여주는 구조로 재설계해야 한다. `제외된 대응안`은 `validation_status`가
-  실행불가인 후보 + `exclusion_category`/`exclusion_detail`로 그대로 매핑 가능.
-- **범위**: 실제 스키마 기준 타입 재작성, `POST /simulate` 트리거 버튼(기존 "다시 실행"을 이 용도로
-  재배선하거나 별도 버튼 추가), `GET /candidates`로 목록 조회 후 화면에 렌더링. P90/CVaR 자리표시자
-  칸을 실제 차트로 교체(Recharts 도입 시점).
-- **완료 조건**: 실제 대응안 후보와 각 후보의 기대손실/P90/CVaR/FACT·INFERENCE·ASSUMPTION이 화면에
-  표시된다.
+`GET /incidents/{id}/decision-package`. §5.1의 10개 항목을 `DecisionPackagePanel`로 그대로 렌더링,
+`recommended_deadline` 카운트다운(`summarizeDeadline`) 포함.
 
-## Phase 6 — 의사결정 근거 패널 (신규 착수 가능)
+## Phase 7 — 담당자 승인 ✅ 완료
 
-- **백엔드**: `GET /incidents/{id}/decision-package` — 완성. `package` 필드가
-  `simulation-supply-chain-tool.md` §5.1의 10개 항목을 정확히 그대로 담고 있다(확인됨,
-  `backend/app/services/response_optimization.py`):
-  ```python
-  package: {
-    "expected_loss_p90_cvar", "now_vs_6h_vs_no_action", "causal_path",
-    "data_and_documents_used", "fact_inference_assumption", "freshness_and_coverage",
-    "key_sensitivity_variables", "feasibility_and_exclusion", "confidence_and_uncertainty",
-    "recommended_deadline": {"deadline", "detail"},
-    "ranked_candidates": {"ranked", "excluded_from_ranking"},
-    "disclaimer",
-  }
-  recommended_deadline: datetime | None   # DecisionPackageRead 최상위 필드에도 별도로 있음
-  ```
-- **의미**: 이 문서 §5.1이 요구한 항목(P90/CVaR, 지금/6시간후/무대응 비교, 원인 경로, 사용 데이터,
-  FACT/INFERENCE/ASSUMPTION, freshness/coverage, 민감도 변수, 실행가능성/제외사유, 신뢰도/불확실성,
-  결정기한)이 **하나도 빠짐없이** 이미 백엔드에 구현돼 있다 — Phase 2~3에서 프론트가 따로 만들어야 하나
-  걱정했던 부분(P90/CVaR 자리표시자, 결정기한 카운트다운)이 전부 이 한 엔드포인트로 해결된다.
-- **범위**: `decision-package` 응답을 그대로 렌더링하는 패널 신규 작성(10개 섹션), `recommended_deadline`
-  기준 카운트다운 UI
-- **완료 조건**: 사건 상세 화면에서 의사결정 근거 10개 항목이 실제 값으로 표시된다.
+`POST /incidents/{id}/approvals`. 사유·승인자 입력 폼, 조건부승인 10자 검증(서버와 동일 기준 선제 검증).
 
-## Phase 7 — 담당자 승인 (신규 착수 가능)
+## Phase 8 — 실시간 갱신 (SSE) ✅ 완료
 
-- **백엔드**: `POST /incidents/{id}/approvals` — 완성. 클라이언트가 보낼 수 있는 `decision_type`은
-  정확히 4개(`승인`/`조건부승인`/`수정요청`/`반려`) — 지금 프론트의 `ApprovalAction`
-  (`approve`/`conditional`/`revise`/`reject`)와 값 자체(영문 vs 한글)만 다르고 개념은 이미 1:1로
-  맞아떨어진다. `조건부승인`은 `reason`이 10자 이상이어야 하는 서버 검증이 있다(`기한초과`는
-  시스템 전용이라 클라이언트가 보낼 수 없음).
-- **범위**: 승인 액션 패널에 사유(`reason`)·승인자(`approver`) 입력 폼 추가(현재는 버튼만 있고 사유
-  입력 폼이 없음), 조건부승인 시 최소 10자 검증을 프론트에서도 선제 표시
-- **완료 조건**: 승인/조건부승인/수정요청/반려 버튼 클릭 시 실제 `POST /approvals` 호출이 성공하고
-  결과가 반영된다.
+`GET /incidents/{id}/stream`. `useIncidentStream` 훅으로 `dag_updated`/`decision_package_updated`/
+`deadline_overrun` 3종 이벤트 구독, 이벤트별 부분 재조회.
 
-## Phase 8 — 실시간 갱신 (SSE) (신규 착수 가능)
+## Phase 9 — SOP 배포·상태 ✅ 완료
 
-- **백엔드**: `GET /incidents/{id}/stream` — 완성. 2~3초 간격 폴링 기반 SSE, 이벤트 타입 3종:
-  `decision_package_updated`, `dag_updated`, `deadline_overrun` (원래 `FRONTEND_ARCHITECTURE.md`
-  §4에서 계획했던 `sop_status_changed`는 SOP 웨이브가 아직 없어서 제외됨)
-- **범위**: `useIncidentStream(incidentId)` 훅 작성(`EventSource` 구독), 이벤트 타입별로 해당 화면
-  영역만 재조회. TanStack Query 없이 지금 구조(로컬 `useState` + `useEffect` fetch)로는 "필요한
-  부분만 무효화"가 번거로우므로, 이 페이즈 시점에 TanStack Query 도입을 재검토한다(Phase 1에서
-  "엔드포인트 여러 개 붙으면 재검토"라고 미뤄뒀던 지점)
-- **완료 조건**: 스냅샷/DAG가 서버에서 갱신되면 폴링 없이 화면이 자동으로 새로고침된다.
+`POST /approvals/{id}/dispatch-sop`, `GET /incidents/{id}/sop-status`. 승인/조건부승인 성공 시 자동
+발송, 역할별(항만/운송/공장/영업/계약) 발송 상태를 `SopDispatchPanel`로 표시.
+
+## Phase 10 — 실행 추적 타임라인·상태 전이 ✅ 완료
+
+`PATCH /sop/{sop_id}/status`, `GET /incidents/{id}/timeline`. 역할별 상태를 수신/수락/시작/진행/완료/
+실패로 전이, 편차 감지 시(`deviation_check`) DAG·후보·의사결정 패키지까지 전체 재조회.
 
 ---
 
-## 이후 페이즈 (여전히 백엔드 API 대기)
+## Phase 11 — 사후보고서 + 비용 귀속 (신규 착수 가능)
 
-| 페이즈 | 기능 | 필요한 백엔드 API |
-|---|---|---|
-| Phase 9 | SOP 배포·미리보기 | `POST /approvals/{id}/dispatch-sop`, `GET .../sop-status` |
-| Phase 10 | 실행 추적 타임라인 | `GET /incidents/{id}/timeline` |
-| Phase 11 | 사후보고서 | `GET /incidents/{id}/post-report` |
-| Phase 12 | ROI·비용 귀속 | `GET /reports/roi`, `GET .../cost-attribution` |
+- **백엔드**: `GET /incidents/{id}/post-report`, `GET /incidents/{id}/cost-attribution` — 완성.
+  실제 응답 필드(확인됨, `backend/app/schemas/post_report.py`):
+  ```python
+  PostReportRead:
+    incident_id, report_status, actual_status, scope_limitation_note, generated_at,
+    sections: dict[str, Any]   # 12개 키 전부 항상 존재
+
+  CostAttributionRead:
+    incident_id, is_heuristic, rag_unavailable, heuristic_disclaimer,
+    avoided_loss_basis, matched_ld_clauses, matched_dnd_clauses,
+    breakdown: {"직접_손익_효과", "고객_회피비용", "분쟁_협상_가능_금액"},
+    classification_note
+  ```
+  `sections`의 12개 키(`backend/app/services/post_report.py` `build_post_report` 확인):
+  ```text
+  1_사건_개요와_발생시점
+  2_최초_예상과_실제_진행_과정
+  3_주요_동적_변수의_변화
+  4_검토한_대응안과_제외_사유
+  5_최종_결정과_승인자
+  6_SOP_발송_수신_수락_실행_이력
+  7_예상_손실과_실제_손실
+  8_회피한_손실과_추가_발생_비용
+  9_LD_DND_귀책_및_비용_부담_주체
+  10_시뮬레이션_오차와_가정의_영향
+  11_자원_확보_실패_실행_편차와_에스컬레이션_이력
+  12_향후_SOP_모델_데이터_개선사항
+  ```
+- **중요한 스코프 제약(꼭 화면에 드러내야 함)**: 이 시스템엔 실적 확정값을 입력받는 API가 없어서
+  `report_status`는 **항상 `"잠정"`**, `actual_status`는 **항상 `"미확정"`**이다. "회피한 손실"은 실측이
+  아니라 baseline-승인후보 기대손실 차이로 계산한 **추정치**(`expected_avoided_loss`)이고, "시뮬레이션
+  오차"는 계산 불가로 명시된다. `scope_limitation_note` 필드에 이 제약이 이미 문장으로 들어있으므로,
+  화면 상단에 그대로 노출해서 "이 보고서는 확정본이 아니다"를 숨기지 않는다.
+- **비용 귀속 분류도 안전한 휴리스틱**: `is_heuristic=true`, `heuristic_disclaimer` 필드가 "법무 판단
+  대체가 아님"을 명시한다 — 이 문구도 화면에 그대로 노출한다. 근거 계약 조항 불명확 시 전액
+  "분쟁_협상_가능_금액"으로 분류(직접손익으로는 절대 분류 안 함).
+- **범위**: 새 라우트 `/incidents/:id/post-report`(기존 대시보드에 얹지 않고 별도 페이지로 분리 —
+  사후 정산 성격상 진행 중 대시보드와 관심사가 다르고, `FRONTEND_ARCHITECTURE.md` §3 원래 라우팅
+  표에도 별도 경로로 계획돼 있었다). decision-package와 같은 방식(섹션 라벨 + 내용 그대로 펼치기)으로
+  12개 섹션 렌더링, cost-attribution의 3분류 breakdown을 강조 표시.
+- **완료 조건**: `/incidents/:id/post-report`에서 12개 섹션과 비용 귀속 3분류가 실제 값으로 표시되고,
+  "잠정" 상태·추정치 제약이 화면에 명시된다.
+
+## Phase 12 — 연간 ROI (신규 착수 가능)
+
+- **백엔드**: `GET /reports/roi` — 완성, **사건 독립적** 전역 엔드포인트. 실제 응답 필드(확인됨,
+  `backend/app/services/roi.py`):
+  ```python
+  RoiRead:
+    inputs: dict[str, float]                      # 계산에 쓰인 6개 파라미터
+    scenarios: {"낙관": {...}, "기준": {...}, "보수": {...}}   # 각각 factor 적용된 결과
+    disclosure: dict[str, Any]                      # 공개 통계 미확보 등 §10이 요구하는 공개사항
+  ```
+  기본 파라미터는 `simulation-supply-chain-tool.md` §10 예시값(연 500억/실제 방어율 30%/회수기간
+  12일)을 역산해서 채택 — 확정치가 아니라 "공개 통계와 보수적 가정으로 만든 사업성 시나리오"임을
+  `disclosure`가 명시한다.
+- **범위**: 새 라우트 `/reports/roi` — 사건에 종속되지 않는 전역 화면이라 `IncidentListPage`처럼
+  사건 목록과 나란히 있는 최상위 페이지로 추가. 낙관/기준/보수 3개 시나리오를 나란히 비교하는 카드,
+  `disclosure` 공개사항을 각주로 표시.
+- **완료 조건**: `/reports/roi`에서 3개 시나리오(낙관/기준/보수)의 연간 방어 가능 기대손실·실현
+  절감액·투자 회수기간이 표시되고, 공개사항 각주가 함께 보인다.
 
 ## 다음 액션
 
-Phase 5(대응안·시뮬레이션)부터 순서대로 진행한다. Phase 4(docker-compose 편입)는 기능이 아니라
-인프라 항목이라 우선순위상 뒤로 미뤄도 무방 — Phase 5~8 완료 후 한 번에 처리하는 것도 고려.
+Phase 11(사후보고서+비용귀속) → Phase 12(ROI) 순서로 진행한다. 둘 다 백엔드가 완성돼 있어 순서를
+바꿔도 무방하지만, 사후보고서가 개별 사건 화면과 더 가깝고(같은 `/incidents/:id/*` 네임스페이스),
+ROI는 완전히 별도 전역 화면이라 뒤에 붙이는 편이 자연스럽다.
