@@ -18,7 +18,7 @@ import {
   type SimulationErrorSection,
   type SopHistorySection,
 } from "../features/post-report/types";
-import { formatKrwToEokwon } from "../lib/currency";
+import { formatKrwByScale } from "../lib/currency";
 import { useTheme } from "../lib/useTheme";
 import { ThemeToggleButton } from "../components/ThemeToggleButton";
 import { OverviewAndDecisionCard } from "../features/post-report/components/OverviewAndDecisionCard";
@@ -253,7 +253,7 @@ export function PostReportPage() {
             <div key={key} className="flex-1 rounded-md border border-[var(--border)] p-3">
               <div className="text-[10.5px] text-[var(--text-tertiary)]">{label}</div>
               <div className="mt-1 text-[15px] font-bold text-[var(--teal)]">
-                {formatKrwToEokwon(costAttribution.breakdown[key] ?? null)}
+                {formatKrwByScale(costAttribution.breakdown[key] ?? null)}
               </div>
             </div>
           ))}
