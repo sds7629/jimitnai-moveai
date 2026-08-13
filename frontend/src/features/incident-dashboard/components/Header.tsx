@@ -1,4 +1,5 @@
 import type { AiStatus } from "../types";
+import { ThemeToggleButton } from "../../../components/ThemeToggleButton";
 
 const AI_STATUS_LABEL: Record<AiStatus, { label: string; colorVar: string }> = {
   live: { label: "AI: 정상", colorVar: "rgba(45,212,191,.6)" },
@@ -36,15 +37,7 @@ export function Header({ aiStatus, theme, onToggleTheme }: HeaderProps) {
         >
           {ai.label}
         </div>
-        <button
-          type="button"
-          onClick={onToggleTheme}
-          aria-label="테마 전환"
-          title={theme === "dark" ? "라이트 모드로 전환" : "다크 모드로 전환"}
-          className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--border-btn)] text-[13px] text-[var(--text-secondary)]"
-        >
-          {theme === "dark" ? "☀️" : "🌙"}
-        </button>
+        <ThemeToggleButton theme={theme} onToggleTheme={onToggleTheme} />
       </div>
     </div>
   );

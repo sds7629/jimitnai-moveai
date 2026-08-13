@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getRoi } from "../features/roi/api";
 import { ROI_SCENARIO_ORDER, type RoiApiResponse } from "../features/roi/types";
 import { formatKrwToEokwon } from "../lib/currency";
+import { useTheme } from "../lib/useTheme";
 
 type LoadState =
   | { status: "loading" }
@@ -24,6 +25,7 @@ const SCENARIO_LABEL_COLOR: Record<(typeof ROI_SCENARIO_ORDER)[number], string> 
  */
 export function RoiPage() {
   const [state, setState] = useState<LoadState>({ status: "loading" });
+  const { theme } = useTheme();
 
   useEffect(() => {
     let cancelled = false;
@@ -43,7 +45,7 @@ export function RoiPage() {
 
   if (state.status === "loading") {
     return (
-      <div data-theme="dark" className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-secondary)]">
+      <div data-theme={theme} className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-secondary)]">
         불러오는 중...
       </div>
     );
@@ -51,7 +53,7 @@ export function RoiPage() {
 
   if (state.status === "error") {
     return (
-      <div data-theme="dark" className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--red)]">
+      <div data-theme={theme} className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--red)]">
         연간 ROI를 불러오지 못했습니다: {state.message}
       </div>
     );
@@ -60,7 +62,7 @@ export function RoiPage() {
   const { scenarios, disclosure } = state.roi;
 
   return (
-    <div data-theme="dark" className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-primary)]">
+    <div data-theme={theme} className="min-h-screen bg-[var(--bg-page)] p-7 text-[var(--text-primary)]">
       <div className="mb-5 text-[19px] font-bold">연간 ROI</div>
 
       <div className="mb-5 flex gap-4">
