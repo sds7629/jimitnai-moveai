@@ -99,6 +99,35 @@ describe("IncidentDashboard — 경계값/예외 케이스", () => {
   });
 });
 
+describe("IncidentDashboard — 테마 토글", () => {
+  it("기본은 다크 테마이고, 우상단 토글 버튼을 클릭하면 라이트로 바뀐다", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<IncidentDashboard data={strikeScenarioMock} />);
+
+    const root = container.querySelector("[data-theme]");
+    expect(root).toHaveAttribute("data-theme", "dark");
+
+    await user.click(screen.getByRole("button", { name: "테마 전환" }));
+    expect(root).toHaveAttribute("data-theme", "light");
+  });
+
+  it("토글 버튼을 두 번 클릭하면 다시 다크로 돌아온다", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<IncidentDashboard data={strikeScenarioMock} />);
+    const root = container.querySelector("[data-theme]");
+    const toggle = screen.getByRole("button", { name: "테마 전환" });
+
+    await user.click(toggle);
+    await user.click(toggle);
+    expect(root).toHaveAttribute("data-theme", "dark");
+  });
+
+  it("theme prop을 light로 넘기면 초기 테마가 라이트로 시작한다", () => {
+    const { container } = render(<IncidentDashboard data={strikeScenarioMock} theme="light" />);
+    expect(container.querySelector("[data-theme]")).toHaveAttribute("data-theme", "light");
+  });
+});
+
 describe("CandidateRow — 완화율(mitigationRatio) 경계값 클램핑", () => {
   const base = strikeScenarioMock.candidates[1];
 

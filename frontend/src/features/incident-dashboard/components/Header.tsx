@@ -8,10 +8,12 @@ const AI_STATUS_LABEL: Record<AiStatus, { label: string; colorVar: string }> = {
 
 interface HeaderProps {
   aiStatus: AiStatus;
+  theme: "dark" | "light";
+  onToggleTheme: () => void;
 }
 
-/** 상단 헤더: 제품명/브랜딩 + AI(LLM) 파이프라인 상태 뱃지 */
-export function Header({ aiStatus }: HeaderProps) {
+/** 상단 헤더: 제품명/브랜딩 + AI(LLM) 파이프라인 상태 뱃지 + 우상단 테마 토글 */
+export function Header({ aiStatus, theme, onToggleTheme }: HeaderProps) {
   const ai = AI_STATUS_LABEL[aiStatus];
 
   return (
@@ -27,11 +29,22 @@ export function Header({ aiStatus }: HeaderProps) {
           <span className="font-semibold text-[var(--text-secondary-strong)]">근거ㆍ신뢰도</span>를 제공합니다
         </div>
       </div>
-      <div
-        className="rounded-full border px-3 py-1 text-[11.5px]"
-        style={{ borderColor: ai.colorVar, color: ai.colorVar }}
-      >
-        {ai.label}
+      <div className="flex items-center gap-2.5">
+        <div
+          className="rounded-full border px-3 py-1 text-[11.5px]"
+          style={{ borderColor: ai.colorVar, color: ai.colorVar }}
+        >
+          {ai.label}
+        </div>
+        <button
+          type="button"
+          onClick={onToggleTheme}
+          aria-label="테마 전환"
+          title={theme === "dark" ? "라이트 모드로 전환" : "다크 모드로 전환"}
+          className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--border-btn)] text-[13px] text-[var(--text-secondary)]"
+        >
+          {theme === "dark" ? "☀️" : "🌙"}
+        </button>
       </div>
     </div>
   );

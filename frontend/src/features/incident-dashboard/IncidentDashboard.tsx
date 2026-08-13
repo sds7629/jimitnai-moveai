@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { AiStatus, ApprovalAction, IncidentDashboardData, RankingMode } from "./types";
 import { Header } from "./components/Header";
 import { IncidentContextBar } from "./components/IncidentContextBar";
@@ -8,7 +9,7 @@ import { ApprovalPanel } from "./components/ApprovalPanel";
 
 export interface IncidentDashboardProps {
   data: IncidentDashboardData;
-  /** 라이트/다크 테마. 기본 다크. */
+  /** 라이트/다크 테마 초기값. 기본 다크. 헤더 우상단 토글 버튼으로 이후 전환 가능(내부 상태로 관리). */
   theme?: "dark" | "light";
   aiStatus?: AiStatus;
   rankingMode?: RankingMode;
@@ -28,19 +29,23 @@ export interface IncidentDashboardProps {
  */
 export function IncidentDashboard({
   data,
-  theme = "dark",
+  theme: initialTheme = "dark",
   aiStatus = "cache_fallback",
   rankingMode = "individual",
   showSopDemoNote = true,
   onRerun,
   onApprovalAction,
 }: IncidentDashboardProps) {
+  // theme prop은 초기값으로만 쓰고, 이후 전환은 헤더의 토글 버튼으로 내부 상태에서 관리한다
+  const [theme, setTheme] = useState<"dark" | "light">(initialTheme);
+  const toggleTheme = () => setTheme((current) => (current === "dark" ? "light" : "dark"));
+
   return (
     <div
       data-theme={theme}
       className="flex min-h-screen flex-col bg-[var(--bg-page)] text-[var(--text-primary)]"
     >
-      <Header aiStatus={aiStatus} />
+      <Header aiStatus={aiStatus} theme={theme} onToggleTheme={toggleTheme} />
       <IncidentContextBar incident={data.incident} onRerun={onRerun} />
       <ImpactDag dag={data.dag} />
 
