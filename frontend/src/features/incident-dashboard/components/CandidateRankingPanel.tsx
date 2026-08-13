@@ -22,7 +22,7 @@ export function CandidateRankingPanel({ candidates, excludedCandidates }: Candid
 
       {candidates.length === 0 && (
         <div className="rounded-md border border-dashed border-[var(--border-dashed)] px-3 py-3 text-[11px] text-[var(--text-secondary)]">
-          아직 시뮬레이션 결과가 없습니다. "다시 실행"을 눌러 계산하세요.
+          아직 실행하지 않았습니다. "실행"을 눌러 대응안과 손실 예측을 계산하세요.
         </div>
       )}
 

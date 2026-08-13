@@ -25,7 +25,7 @@ export interface IncidentDashboardProps {
   snapshot?: SnapshotSummary;
   /** 없으면 의사결정 근거 패널을 렌더링하지 않는다 (Phase 6 이전 호출부와의 호환) */
   decisionPackage?: DecisionPackageApi;
-  /** POST /simulate가 진행 중일 때 "다시 실행" 버튼에 로딩 상태를 표시 (Phase 5) */
+  /** POST /simulate가 진행 중일 때 "실행"/"다시 실행" 버튼에 로딩 상태를 표시 (Phase 5) */
   isRerunning?: boolean;
   rerunError?: string;
   /** POST /approvals가 진행 중일 때 승인 액션 버튼들을 잠근다 (Phase 7) */
@@ -97,6 +97,7 @@ export function IncidentDashboard({
         incident={data.incident}
         onRerun={onRerun}
         isRerunning={isRerunning}
+        hasResults={decisionPackage !== undefined}
         rerunError={rerunError}
         postReportHref={postReportHref}
       />

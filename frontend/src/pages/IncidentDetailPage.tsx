@@ -38,7 +38,7 @@ type LoadState =
       dagColumns: DagColumn[];
       snapshot: SnapshotSummary;
       candidatesApi: CandidateApi[];
-      decisionPackage: DecisionPackageApi;
+      decisionPackage: DecisionPackageApi | undefined;
       sopStatuses: SopStatusItemApi[];
       timelineEvents: TimelineEventApi[];
     };
@@ -46,17 +46,22 @@ type LoadState =
 /**
  * 사건 상세 화면 (frontend/docs/FEATURE_PHASES.md Phase 2~3~5~6).
  *
- * incident(GET /incidents 목록에서 찾음), impact-dag, 운영 스냅샷, 대응안 후보, 의사결정 근거를
- * 병렬로 조회해서 실제 데이터로 채운다. SOP/승인 패널은 아직 백엔드 API가 없어서
- * strikeScenarioMock의 값을 그대로 유지한다 — 해당 API가 생기면 이 부분만 실제 호출로 바뀐다
- * (Phase 8 이후).
+ * incident(GET /incidents 목록에서 찾음), impact-dag, 운영 스냅샷을 마운트 시 병렬로 조회해서
+ * 실제 데이터로 채운다. SOP/승인 패널은 아직 백엔드 API가 없어서 strikeScenarioMock의 값을 그대로
+ * 유지한다 — 해당 API가 생기면 이 부분만 실제 호출로 바뀐다 (Phase 8 이후).
+ *
+ * 대응안 후보ㆍ의사결정 근거는 **마운트 시점에는 조회하지 않는다.** 사용자가 "실행"/"다시 실행"을
+ * 누르기 전까지 DB에 이미 있던(과거 실행분ㆍ시드 데이터) 결과를 화면에 보여주면, 방금 누른 액션의
+ * 결과인지 원래 있던 데이터인지 구분할 수 없는 문제가 있었다 — 그래서 candidatesApi는 빈 배열,
+ * decisionPackage는 undefined로 시작하고, handleRerun이 성공했을 때만 채워진다. "실행" 버튼 라벨도
+ * decisionPackage 유무로 "실행"/"다시 실행"을 오간다(IncidentDashboard→IncidentContextBar로 전달).
  *
  * GET /incidents/{id} 단건 조회 엔드포인트가 없어서, 목록을 통째로 받아 id로 찾는 방식을 쓴다.
- * "다시 실행"은 POST /simulate를 트리거한 뒤 candidates·decision-package를 다시 조회한다 —
+ * "실행"/"다시 실행"은 POST /simulate를 트리거한 뒤 candidates·decision-package를 다시 조회한다 —
  * decision-package는 백엔드가 "최신 시뮬레이션 이후면 새로 만들고, 아니면 재사용"하는 캐싱 정책을
  * 쓰므로(app/api/decision_package.py) 재시뮬레이션 후에는 반드시 다시 불러와야 최신 내용이 반영된다.
  * LLM 호출이 섞여있어 몇 초 걸릴 수 있으므로 isRerunning으로 버튼을 잠그고, 실패해도 기존 화면은
- * 그대로 유지한다.
+ * 그대로 유지한다(최초 실행이 실패하면 candidatesApi/decisionPackage는 계속 비어있는 채로 남는다).
  */
 export function IncidentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -77,12 +82,10 @@ export function IncidentDetailPage() {
       listIncidents(),
       getImpactDag(incidentId),
       getLatestSnapshot(incidentId),
-      listCandidates(incidentId),
-      getDecisionPackage(incidentId),
       getSopStatus(incidentId),
       getTimeline(incidentId),
     ])
-      .then(([incidents, dag, snapshot, candidatesResponse, decisionPackage, sopStatusResponse, timelineResponse]) => {
+      .then(([incidents, dag, snapshot, sopStatusResponse, timelineResponse]) => {
         if (cancelled) return;
 
         const incident = incidents.find((item) => item.id === incidentId);
@@ -97,8 +100,9 @@ export function IncidentDetailPage() {
           progressBadge: `${dag.quality_mode} ㆍ ${dag.scenario_version}`,
           dagColumns: layoutDagIntoColumns(dag.nodes, dag.edges),
           snapshot: summarizeSnapshot(snapshot),
-          candidatesApi: candidatesResponse.candidates,
-          decisionPackage,
+          // 대응안 후보ㆍ의사결정 근거는 "실행" 버튼을 눌러야만 채워진다 — 위 클래스 주석 참고.
+          candidatesApi: [],
+          decisionPackage: undefined,
           sopStatuses: sopStatusResponse.sop_statuses,
           timelineEvents: timelineResponse.events,
         });

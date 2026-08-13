@@ -175,10 +175,25 @@ function mockAllSuccess() {
   mockGetDecisionPackage.mockResolvedValue(decisionPackage);
   mockGetSopStatus.mockResolvedValue({ incident_id: 2, sop_statuses: [] });
   mockGetTimeline.mockResolvedValue({ incident_id: 2, events: [] });
+  // 마운트 시에는 listCandidates/getDecisionPackage가 호출되지 않는다 — "실행" 버튼을 눌러야
+  // POST /simulate가 호출되고, 그 뒤에야 위 두 mock의 응답이 화면에 반영된다.
+  mockRunSimulation.mockResolvedValue({
+    incident_id: 2,
+    reused_existing_candidates: true,
+    candidate_count: 1,
+    validated_count: 1,
+    simulated_count: 1,
+  });
 }
 
-describe("IncidentDetailPage — 정상 시나리오(happy path)", () => {
-  it("사건 정보·DAG·스냅샷·대응안 후보·의사결정 근거를 함께 불러와 대시보드를 렌더링한다", async () => {
+/** "실행" 버튼을 눌러 최초 실행을 완료시키고, 대응안 후보가 채워질 때까지 기다린다. */
+async function clickExecuteAndWait(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "실행" }));
+  await screen.findByText("안전재고 사전 당김");
+}
+
+describe("IncidentDetailPage — 정상 시나리오(happy path, 마운트 시 초기 상태)", () => {
+  it("사건 정보·DAG·스냅샷은 마운트 시 불러오지만, 대응안 후보·의사결정 근거는 실행 전까지 보여주지 않는다", async () => {
     mockAllSuccess();
 
     renderAt("2");
@@ -186,8 +201,53 @@ describe("IncidentDetailPage — 정상 시나리오(happy path)", () => {
     expect(await screen.findByText("항만 파업")).toBeInTheDocument();
     expect(screen.getByText("항만/운송 노동 파업")).toBeInTheDocument();
     expect(screen.getByText("데이터 버전 v1")).toBeInTheDocument();
-    expect(screen.getByText("안전재고 사전 당김")).toBeInTheDocument();
+
+    // 실행 전에는 후보/의사결정 근거를 아직 조회하지 않는다 — 시드/과거 데이터를 먼저 보여주면
+    // "다시 실행"을 눌렀을 때 결과가 그 액션 때문인지 구분할 수 없는 문제가 있었다.
+    expect(mockListCandidates).not.toHaveBeenCalled();
+    expect(mockGetDecisionPackage).not.toHaveBeenCalled();
+    expect(screen.queryByText("안전재고 사전 당김")).not.toBeInTheDocument();
+    expect(screen.queryByText("이 패키지는 대응안의 순위와 근거를 제공할 뿐입니다.")).not.toBeInTheDocument();
+
+    // 아직 한 번도 실행하지 않았으므로 버튼 라벨은 "실행"이고, 후보 패널에는 실행 전 안내가 보인다.
+    expect(screen.getByRole("button", { name: "실행" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "다시 실행" })).not.toBeInTheDocument();
+    expect(screen.getByText(/아직 실행하지 않았습니다/)).toBeInTheDocument();
+  });
+});
+
+describe("IncidentDetailPage — 최초 실행", () => {
+  it("'실행' 버튼 클릭 시 POST /simulate 후 대응안 후보·의사결정 근거를 채우고 버튼 라벨이 '다시 실행'으로 바뀐다", async () => {
+    const user = userEvent.setup();
+    mockAllSuccess();
+
+    renderAt("2");
+    await screen.findByText("항만 파업");
+
+    await user.click(screen.getByRole("button", { name: "실행" }));
+
+    expect(mockRunSimulation).toHaveBeenCalledWith(2);
+    expect(await screen.findByText("안전재고 사전 당김")).toBeInTheDocument();
     expect(screen.getByText("이 패키지는 대응안의 순위와 근거를 제공할 뿐입니다.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "다시 실행" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "실행" })).not.toBeInTheDocument();
+  });
+
+  it("최초 실행이 실패하면 에러 메시지를 보여주고 버튼 라벨은 '실행'으로 유지한다", async () => {
+    const user = userEvent.setup();
+    mockAllSuccess();
+    mockRunSimulation.mockRejectedValue(new Error("LLM 호출 실패"));
+
+    renderAt("2");
+    await screen.findByText("항만 파업");
+
+    await user.click(screen.getByRole("button", { name: "실행" }));
+
+    expect(await screen.findByText(/재시뮬레이션 실패/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "실행" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "다시 실행" })).not.toBeInTheDocument();
+    expect(screen.queryByText("안전재고 사전 당김")).not.toBeInTheDocument();
+    expect(screen.queryByText("이 패키지는 대응안의 순위와 근거를 제공할 뿐입니다.")).not.toBeInTheDocument();
   });
 });
 
@@ -217,22 +277,34 @@ describe("IncidentDetailPage — 예외 케이스", () => {
     expect(await screen.findByText(/불러오지 못했습니다/)).toBeInTheDocument();
   });
 
-  it("대응안 후보 조회가 실패해도 에러 메시지를 표시한다", async () => {
+  // 대응안 후보/의사결정 근거는 더 이상 마운트 시 조회되지 않는다(실행 버튼을 눌러야 조회됨) —
+  // 그래서 이 두 API의 실패는 전체 페이지 에러가 아니라 handleRerun의 재시뮬레이션 실패로 나타난다.
+  it("'실행' 이후 대응안 후보 재조회가 실패하면 재시뮬레이션 실패 문구를 보여주고 버튼 라벨은 '실행'으로 유지한다", async () => {
+    const user = userEvent.setup();
     mockAllSuccess();
     mockListCandidates.mockRejectedValue(new Error("후보 조회 실패"));
 
     renderAt("2");
+    await screen.findByText("항만 파업");
 
-    expect(await screen.findByText(/불러오지 못했습니다/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "실행" }));
+
+    expect(await screen.findByText(/재시뮬레이션 실패/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "실행" })).toBeInTheDocument();
   });
 
-  it("의사결정 근거 조회가 실패해도 에러 메시지를 표시한다", async () => {
+  it("'실행' 이후 의사결정 근거 재조회가 실패하면 재시뮬레이션 실패 문구를 보여주고 버튼 라벨은 '실행'으로 유지한다", async () => {
+    const user = userEvent.setup();
     mockAllSuccess();
     mockGetDecisionPackage.mockRejectedValue(new Error("근거 조회 실패"));
 
     renderAt("2");
+    await screen.findByText("항만 파업");
 
-    expect(await screen.findByText(/불러오지 못했습니다/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "실행" }));
+
+    expect(await screen.findByText(/재시뮬레이션 실패/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "실행" })).toBeInTheDocument();
   });
 });
 
@@ -247,19 +319,14 @@ describe("IncidentDetailPage — 경계값(존재하지 않는 사건)", () => {
 });
 
 describe("IncidentDetailPage — 다시 실행(재시뮬레이션)", () => {
-  it("'다시 실행' 클릭 시 POST /simulate 후 대응안 후보를 다시 불러온다", async () => {
+  it("최초 실행 후 '다시 실행' 클릭 시 POST /simulate 후 대응안 후보를 다시 불러온다", async () => {
     const user = userEvent.setup();
     mockAllSuccess();
-    mockRunSimulation.mockResolvedValue({
-      incident_id: 2,
-      reused_existing_candidates: true,
-      candidate_count: 1,
-      validated_count: 1,
-      simulated_count: 1,
-    });
 
     renderAt("2");
-    await screen.findByText("안전재고 사전 당김");
+    await screen.findByText("항만 파업");
+    await clickExecuteAndWait(user);
+    expect(screen.getByRole("button", { name: "다시 실행" })).toBeInTheDocument();
 
     const updatedCandidate: CandidateApi = {
       ...oneCandidate,
@@ -269,23 +336,25 @@ describe("IncidentDetailPage — 다시 실행(재시뮬레이션)", () => {
 
     await user.click(screen.getByRole("button", { name: "다시 실행" }));
 
-    expect(mockRunSimulation).toHaveBeenCalledWith(2);
+    expect(mockRunSimulation).toHaveBeenCalledTimes(2);
     expect(await screen.findByText(/0\.1억원/)).toBeInTheDocument();
   });
 
-  it("재시뮬레이션이 실패하면 에러 문구를 보여주고 기존 화면은 유지한다", async () => {
+  it("최초 실행 후 재시뮬레이션이 실패하면 에러 문구를 보여주고 기존 화면은 유지한다", async () => {
     const user = userEvent.setup();
     mockAllSuccess();
-    mockRunSimulation.mockRejectedValue(new Error("LLM 호출 실패"));
 
     renderAt("2");
-    await screen.findByText("안전재고 사전 당김");
+    await screen.findByText("항만 파업");
+    await clickExecuteAndWait(user);
 
+    mockRunSimulation.mockRejectedValueOnce(new Error("LLM 호출 실패"));
     await user.click(screen.getByRole("button", { name: "다시 실행" }));
 
     expect(await screen.findByText(/재시뮬레이션 실패/)).toBeInTheDocument();
-    // 기존 후보 데이터는 그대로 남아있어야 한다
+    // 기존 후보 데이터는 그대로 남아있어야 하고, 라벨도 여전히 "다시 실행"이어야 한다
     expect(screen.getByText("안전재고 사전 당김")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "다시 실행" })).toBeInTheDocument();
   });
 });
 
@@ -306,7 +375,8 @@ describe("IncidentDetailPage — 담당자 승인", () => {
     });
 
     renderAt("2");
-    await screen.findByText("안전재고 사전 당김");
+    await screen.findByText("항만 파업");
+    await clickExecuteAndWait(user);
 
     await user.type(screen.getByLabelText("승인자"), "김담당");
     await user.type(screen.getByLabelText("사유"), "재고 확보 완료");
@@ -325,7 +395,8 @@ describe("IncidentDetailPage — 담당자 승인", () => {
     mockSubmitApproval.mockRejectedValue(new Error("검증 실패"));
 
     renderAt("2");
-    await screen.findByText("안전재고 사전 당김");
+    await screen.findByText("항만 파업");
+    await clickExecuteAndWait(user);
 
     await user.type(screen.getByLabelText("승인자"), "김담당");
     await user.type(screen.getByLabelText("사유"), "사유 텍스트");
@@ -340,7 +411,7 @@ describe("IncidentDetailPage — SSE 실시간 갱신", () => {
   it("useIncidentStream을 현재 사건 ID로 구독한다", async () => {
     mockAllSuccess();
     renderAt("2");
-    await screen.findByText("안전재고 사전 당김");
+    await screen.findByText("항만 파업");
 
     expect(mockUseIncidentStream).toHaveBeenCalledWith(2, expect.any(Object));
   });
@@ -363,10 +434,12 @@ describe("IncidentDetailPage — SSE 실시간 갱신", () => {
     expect(await screen.findByText("갱신된 노드")).toBeInTheDocument();
   });
 
-  it("decision_package_updated 이벤트가 오면 의사결정 근거를 다시 불러온다", async () => {
+  it("decision_package_updated 이벤트가 오면 의사결정 근거를 다시 불러온다(실행 전에도 SSE로 채워질 수 있다)", async () => {
     mockAllSuccess();
     renderAt("2");
-    await screen.findByText("이 패키지는 대응안의 순위와 근거를 제공할 뿐입니다.");
+    await screen.findByText("항만 파업");
+    // 실행 전이라 아직 의사결정 근거 패널이 없는 상태에서 이벤트가 온다
+    expect(screen.queryByText("이 패키지는 대응안의 순위와 근거를 제공할 뿐입니다.")).not.toBeInTheDocument();
 
     mockGetDecisionPackage.mockResolvedValue({
       ...decisionPackage,
@@ -384,7 +457,7 @@ describe("IncidentDetailPage — SSE 실시간 갱신", () => {
   it("deadline_overrun 이벤트가 오면 경고 배너를 표시한다", async () => {
     mockAllSuccess();
     renderAt("2");
-    await screen.findByText("안전재고 사전 당김");
+    await screen.findByText("항만 파업");
 
     act(() => {
       getStreamHandlers().onDeadlineOverrun?.();
@@ -412,7 +485,8 @@ describe("IncidentDetailPage — SOP 자동 발송", () => {
     mockDispatchSop.mockResolvedValue([]);
 
     renderAt("2");
-    await screen.findByText("안전재고 사전 당김");
+    await screen.findByText("항만 파업");
+    await clickExecuteAndWait(user);
 
     mockGetSopStatus.mockResolvedValue({
       incident_id: 2,
@@ -459,7 +533,8 @@ describe("IncidentDetailPage — SOP 자동 발송", () => {
     });
 
     renderAt("2");
-    await screen.findByText("안전재고 사전 당김");
+    await screen.findByText("항만 파업");
+    await clickExecuteAndWait(user);
 
     await user.type(screen.getByLabelText("승인자"), "김담당");
     await user.type(screen.getByLabelText("사유"), "반려 사유입니다");
@@ -486,7 +561,8 @@ describe("IncidentDetailPage — SOP 자동 발송", () => {
     mockDispatchSop.mockRejectedValue(new Error("발송 실패"));
 
     renderAt("2");
-    await screen.findByText("안전재고 사전 당김");
+    await screen.findByText("항만 파업");
+    await clickExecuteAndWait(user);
 
     await user.type(screen.getByLabelText("승인자"), "김담당");
     await user.type(screen.getByLabelText("사유"), "재고 확보 완료");
