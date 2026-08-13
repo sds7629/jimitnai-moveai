@@ -174,6 +174,12 @@ def _build_simulation_prompt(
   - fact: 위 운영 스냅샷에서 그대로 가져온 값
   - inference: Impact DAG 경로로 추론한 값
   - assumption: 네가 명시적으로 가정한 값
+- sensitivity_variables와 fact/inference/assumption의 모든 key와 value는 이 보고서를 읽는
+  실무자가 그대로 이해할 수 있는 **한국어 문장**으로 작성하라. 운영 스냅샷의 원본 필드명
+  (snake_case, 예: customs_clearance_delay_duration_hours)이나 영어 문장을 key나 value로
+  그대로 옮겨쓰지 마라 — "통관 지연 시간"처럼 한국어로 풀어 쓰고, 원본 필드명이나 부품/컨테이너
+  코드(예: PT-CHIP-01)가 꼭 필요하면 한국어 설명 뒤에 괄호로만 병기하라
+  (예: "통관 지연 시간(customs_clearance_delay_duration_hours)").
 - 반드시 아래 JSON 스키마 하나만 응답하라. 다른 설명 텍스트나 마크다운 코드펜스를 붙이지 마라.
 
 {{"expected_loss": 0, "p90": 0, "cvar": 0, "confidence": 0.0,
