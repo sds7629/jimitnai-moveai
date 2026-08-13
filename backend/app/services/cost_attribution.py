@@ -284,9 +284,8 @@ def classify_cost_attribution(
         "is_heuristic": True,
         "rag_unavailable": rag_unavailable,
         "heuristic_disclaimer": (
-            "이 분류는 실제 법무 판단이 아니라 계약 조항 RAG 검색 결과에 기반한 휴리스틱입니다. "
-            "최종 귀책·비용 부담 판단은 법무·계약 담당자의 검토를 거쳐야 합니다"
-            "(simulation-supply-chain-tool.md §8.3)."
+            "이 분류는 실제 법무 판단이 아니라 계약 조항 검색 결과에 기반한 참고용 추정치입니다. "
+            "최종 귀책·비용 부담 판단은 법무·계약 담당자의 검토를 거쳐야 합니다."
         ),
         "avoided_loss_basis": avoided,
         "matched_ld_clauses": [
